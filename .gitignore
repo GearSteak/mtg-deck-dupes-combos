@@ -1,0 +1,11 @@
+data/
+!data/.gitkeep
+*.csv
+__pycache__/
+*.pyc
+.venv/
+venv/
+probe_*.py
+*_sample.*
+collection_inertia.json
+coll_page.html

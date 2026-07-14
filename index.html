@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deck Dupes & Combos — MTG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0e1218;
+      --bg-2: #161c26;
+      --panel: #1a2230;
+      --panel-2: #222b3c;
+      --border: #2e3a4f;
+      --text: #e6ebf2;
+      --muted: #8b97ab;
+      --accent: #3ecfaf;
+      --accent-dim: #1f6f60;
+      --warn: #e8b86d;
+      --danger: #e07a7a;
+      --link: #7ec8ff;
+      --radius: 10px;
+      --font: "DM Sans", system-ui, sans-serif;
+      --display: "Instrument Serif", Georgia, serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, #1a3d36 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, #243050 0%, transparent 50%),
+        var(--bg);
+      line-height: 1.45;
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    header {
+      margin-bottom: 1.75rem;
+      animation: rise 0.55s ease-out both;
+    }
+
+    header h1 {
+      font-family: var(--display);
+      font-weight: 400;
+      font-size: clamp(2.1rem, 5vw, 3rem);
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+    }
+
+    header h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 42rem;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      animation: rise 0.55s ease-out 0.08s both;
+    }
+
+    .spacer { flex: 1; min-width: 0.5rem; }
+
+    button, .file-btn {
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.55rem 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.12s;
+    }
+
+    button:hover, .file-btn:hover {
+      background: var(--panel-2);
+      border-color: #45607f;
+    }
+
+    button:active { transform: translateY(1px); }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #06241e;
+      border-color: var(--accent);
+    }
+
+    button.primary:hover {
+      background: #5fdcc0;
+      border-color: #5fdcc0;
+    }
+
+    button.ghost {
+      background: transparent;
+    }
+
+    .opts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.4rem;
+      margin-bottom: 1.5rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+      animation: rise 0.55s ease-out 0.12s both;
+    }
+
+    .opts label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .opts input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .decks {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .deck {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      animation: rise 0.45s ease-out both;
+    }
+
+    .deck-top {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      margin-bottom: 0.65rem;
+    }
+
+    .deck-top input[type="text"] {
+      flex: 1;
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 600;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 0.45rem 0.7rem;
+    }
+
+    .deck-top input:focus, textarea:focus {
+      outline: 2px solid var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    .deck-meta {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin: 0.35rem 0 0;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      resize: vertical;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 0.7rem 0.8rem;
+    }
+
+    .status {
+      min-height: 1.4rem;
+      margin-bottom: 1rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--accent); }
+
+    .results { display: none; }
+    .results.show { display: block; animation: rise 0.4s ease-out both; }
+
+    .section {
+      margin-bottom: 2rem;
+    }
+
+    .section h2 {
+      font-family: var(--display);
+      font-weight: 400;
+      font-size: 1.75rem;
+      margin: 0 0 0.35rem;
+    }
+
+    .section .sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 1rem;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .pill.on {
+      color: var(--accent);
+      border-color: var(--accent-dim);
+      background: rgba(62, 207, 175, 0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .count {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: var(--warn);
+    }
+
+    .deck-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .tag {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .combo-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .combo {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+    }
+
+    .combo h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .combo .produces {
+      color: var(--accent);
+      font-size: 0.85rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .combo .desc {
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+    }
+
+    .combo a {
+      color: var(--link);
+      font-size: 0.8rem;
+      text-decoration: none;
+    }
+
+    .combo a:hover { text-decoration: underline; }
+
+    .deck-block {
+      margin-bottom: 1.75rem;
+    }
+
+    .deck-block > h3 {
+      font-size: 1.15rem;
+      margin: 0 0 0.65rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .deck-block > h3 span {
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 0.75rem 0;
+    }
+
+    details.almost > summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 0.75rem 0 0.5rem;
+    }
+
+    .foot {
+      margin-top: 2.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .foot a { color: var(--link); }
+
+    .notice {
+      background: rgba(232, 184, 109, 0.1);
+      border: 1px solid rgba(232, 184, 109, 0.35);
+      color: var(--warn);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+
+    .notice.show { display: block; }
+
+    .import-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1.25rem;
+      animation: rise 0.55s ease-out 0.1s both;
+    }
+
+    .import-box h2 {
+      font-family: var(--display);
+      font-weight: 400;
+      font-size: 1.35rem;
+      margin: 0 0 0.35rem;
+    }
+
+    .import-box .sub {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin: 0 0 0.75rem;
+    }
+
+    .import-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    .import-row input[type="text"] {
+      flex: 1;
+      min-width: 220px;
+      font-family: var(--font);
+      font-size: 0.95rem;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 0.5rem 0.7rem;
+    }
+
+    .import-row input:focus {
+      outline: 2px solid var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    .deck-pick {
+      display: none;
+      margin-top: 0.85rem;
+      max-height: 260px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-2);
+    }
+
+    .deck-pick.show { display: block; }
+
+    .deck-pick label {
+      display: flex;
+      gap: 0.55rem;
+      align-items: flex-start;
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+
+    .deck-pick label:last-child { border-bottom: none; }
+
+    .deck-pick label:hover { background: rgba(255,255,255,0.03); }
+
+    .deck-pick .meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .import-actions {
+      display: none;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 0.75rem;
+      align-items: center;
+    }
+
+    .import-actions.show { display: flex; }
+
+    .owned-yes { color: var(--accent); font-weight: 600; }
+    .owned-no { color: var(--warn); font-weight: 600; }
+    .mark-owned {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.45rem;
+      margin-left: 0.35rem;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .export-bar {
+      display: none;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      align-items: center;
+      margin: 0 0 1.25rem;
+      padding: 0.85rem 1rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .export-bar.show { display: flex; }
+
+    .export-bar .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-right: 0.25rem;
+    }
+
+    .export-panel {
+      display: none;
+      margin-bottom: 1.5rem;
+    }
+
+    .export-panel.show { display: block; }
+
+    .export-panel textarea {
+      min-height: 220px;
+      white-space: pre;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 1.25rem 0.9rem 3rem; }
+      .deck-top { flex-wrap: wrap; }
+      th.hide-sm, td.hide-sm { display: none; }
+    }
+
+    @media print {
+      * { box-shadow: none !important; }
+      body {
+        background: #fff !important;
+        color: #111 !important;
+      }
+      .wrap { max-width: none; padding: 0; }
+      .no-print { display: none !important; }
+      .results { display: block !important; }
+      .export-bar, .export-panel { display: none !important; }
+      .section h2, .deck-block > h3, header h1 {
+        color: #111 !important;
+        font-family: Georgia, serif;
+      }
+      header p, .section .sub, .empty, .combo .desc, .deck-block > h3 span {
+        color: #444 !important;
+      }
+      .deck, .combo, .export-bar {
+        background: #fff !important;
+        border: 1px solid #ccc !important;
+        break-inside: avoid;
+      }
+      .count, .combo .produces { color: #111 !important; font-weight: 700; }
+      .pill, .tag {
+        background: #f0f0f0 !important;
+        border-color: #ccc !important;
+        color: #333 !important;
+      }
+      th, td { border-bottom-color: #ccc !important; color: #111 !important; }
+      .combo a { color: #111 !important; text-decoration: underline; }
+      a[href]::after { content: none !important; }
+      .print-only {
+        display: block !important;
+        white-space: pre-wrap;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 11pt;
+        line-height: 1.35;
+        color: #111;
+      }
+      .screen-results { display: none !important; }
+      .tabs, .subtabs { display: none !important; }
+    }
+
+    .print-only { display: none; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0 0 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.55rem;
+    }
+
+    .tab {
+      font-family: var(--font);
+      font-size: 0.88rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 8px 8px 0 0;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+    }
+
+    .tab:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-color: var(--border);
+      border-bottom-color: var(--panel);
+      background: var(--panel);
+    }
+
+    .tab .count-badge {
+      display: inline-block;
+      min-width: 1.2rem;
+      margin-left: 0.3rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 999px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tab.active .count-badge {
+      color: var(--accent);
+      border-color: var(--accent-dim);
+    }
+
+    .subtabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin: 0 0 0.85rem;
+    }
+
+    .subtab {
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 0.3rem 0.7rem;
+      cursor: pointer;
+    }
+
+    .subtab:hover {
+      color: var(--text);
+      border-color: #45607f;
+    }
+
+    .subtab.active {
+      color: #06241e;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .subtab .count-badge {
+      display: inline-block;
+      margin-left: 0.2rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.2);
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .subtab.active .count-badge {
+      background: rgba(6, 36, 30, 0.18);
+      color: #06241e;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: rise 0.25s ease-out both; }
+
+    .panel-sub { display: none; }
+    .panel-sub.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Deck Dupes <em>&amp;</em> Combos</h1>
+      <p class="no-print">Paste multiple Magic decklists to find shared cards and Commander Spellbook combos in each list.</p>
+    </header>
+
+    <div id="corsNotice" class="notice no-print">
+      Open this page via a local server (not <code>file://</code>) so combo lookup works.
+      Run <code>start.bat</code> or <code>python -m http.server 8080</code>, then visit
+      <a href="http://localhost:8080">http://localhost:8080</a>.
+    </div>
+
+    <div class="import-box no-print">
+      <h2>Ownership sources</h2>
+      <p class="sub">
+        Easiest for Deckstats: Collection → export <strong>CSV</strong> → <strong>Upload CSV</strong> (saved under <code>data/</code>).
+        Live pull only works with a link that includes a collection number
+        (e.g. <code>…/collections/12345</code>) — plain <code>/collections</code> has no id while logged in.
+      </p>
+      <div class="import-row">
+        <input type="file" id="collectionFile" class="file-input" accept=".csv,text/csv" />
+        <button type="button" id="pickCollection">Upload CSV (ManaBox / Deckstats)</button>
+        <button type="button" class="ghost" id="refreshCollection">Refresh</button>
+        <button type="button" class="ghost" id="clearCollection">Clear saved</button>
+      </div>
+      <div class="import-row" style="margin-top:0.55rem">
+        <input type="text" id="deckstatsCollectionUrl" placeholder="…/collections/12345  or  idcollections number" />
+        <button type="button" id="loadDeckstatsCollection">Pull public collection</button>
+      </div>
+      <p class="deck-meta" id="collectionStatus">No collection loaded yet.</p>
+    </div>
+
+    <div class="import-box no-print">
+      <h2>Import from Deckstats</h2>
+      <p class="sub">Paste your public profile URL (or user id). Then pick which decks to load.</p>
+      <div class="import-row">
+        <input type="text" id="deckstatsUrl" placeholder="https://deckstats.net/users/123456-YourName" />
+        <button type="button" id="loadDeckstats">Load decks</button>
+      </div>
+      <div class="deck-pick" id="deckPick"></div>
+      <div class="import-actions" id="importActions">
+        <button type="button" class="ghost" id="selectAllDecks">Select all</button>
+        <button type="button" class="ghost" id="selectNoneDecks">Select none</button>
+        <span class="spacer"></span>
+        <button type="button" class="primary" id="importDecks">Import selected</button>
+      </div>
+    </div>
+
+    <div class="toolbar no-print">
+      <button type="button" class="ghost" id="addDeck">+ Add deck</button>
+      <button type="button" class="ghost" id="clearDecks">Clear all decks</button>
+      <span class="spacer"></span>
+      <button type="button" class="primary" id="analyze">Analyze decks</button>
+    </div>
+
+    <div class="opts no-print">
+      <label><input type="checkbox" id="excludeBasics" checked /> Ignore basic lands in shared cards</label>
+      <label><input type="checkbox" id="excludeBasicsOwned" checked /> Ignore basic lands in missing/owned</label>
+      <label><input type="checkbox" id="showAlmost" /> Include “almost” combos (missing 1+ cards)</label>
+    </div>
+
+    <div class="decks no-print" id="decks"></div>
+    <div class="status no-print" id="status"></div>
+
+    <div class="results" id="results">
+      <div class="export-bar no-print" id="exportBar">
+        <span class="hint">Export</span>
+        <button type="button" class="primary" id="copyResults">Copy results</button>
+        <button type="button" id="printResults">Print</button>
+        <button type="button" class="ghost" id="toggleText">Show plain text</button>
+      </div>
+
+      <div class="export-panel no-print" id="exportPanel">
+        <p class="sub">Select all and paste into a doc, or use Copy results.</p>
+        <textarea id="exportText" readonly spellcheck="false"></textarea>
+      </div>
+
+      <pre class="print-only" id="printText"></pre>
+
+      <div class="screen-results">
+        <div class="tabs no-print" id="mainTabs" role="tablist">
+          <button type="button" class="tab active" data-main-tab="shared" role="tab">Shared cards</button>
+          <button type="button" class="tab" data-main-tab="combos" role="tab">Combos</button>
+          <button type="button" class="tab" data-main-tab="owned" role="tab">Owned / missing</button>
+        </div>
+
+        <div class="tab-panel active" data-main-panel="shared" id="panelShared">
+          <p class="sub">Cards that appear in more than one deck.</p>
+          <div class="pill-row" id="sharedFilters"></div>
+          <div id="sharedTable"></div>
+        </div>
+
+        <div class="tab-panel" data-main-panel="combos" id="panelCombos">
+          <p class="sub">Known combos fully present in each list, via Commander Spellbook.</p>
+          <div class="subtabs no-print" id="comboSubtabs"></div>
+          <div id="comboResults"></div>
+        </div>
+
+        <div class="tab-panel" data-main-panel="owned" id="panelOwned">
+          <p class="sub">Compared to your saved ManaBox collection (+ local “mark owned” overrides).</p>
+          <div class="subtabs no-print" id="ownedSubtabs"></div>
+          <div id="ownedResults"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot no-print">
+      Combo data from
+      <a href="https://commanderspellbook.com/" target="_blank" rel="noopener">Commander Spellbook</a>.
+      Accepts Moxfield / Arena / MTGO-style lists (<code>1 Card Name</code>, <code>1x Card</code>, section headers).
+    </div>
+  </div>
+
+  <script>
+    const API = "https://backend.commanderspellbook.com/find-my-combos";
+    const BASIC_LANDS = new Set([
+      "plains", "island", "swamp", "mountain", "forest",
+      "snow-covered plains", "snow-covered island", "snow-covered swamp",
+      "snow-covered mountain", "snow-covered forest",
+      "wastes", "snow-covered wastes",
+    ]);
+
+    const SECTION_RE = /^(?:\/\/\s*)?(commander(?:s)?|deck|main(?:board)?|sideboard|maybeboard|companions?|considerations?)\s*:?\s*$/i;
+    const CARD_LINE_RE = /^(?:(\d+)\s*[xX]?\s+)?(.+?)(?:\s+\([A-Za-z0-9]+\)(?:\s+\d+)?)?(?:\s+\*[FEfe]\*)?\s*$/;
+
+    let deckId = 0;
+    let lastReportText = "";
+    let deckstatsOwnerId = null;
+    let deckstatsDecks = [];
+    let collectionState = null; // full lookup payload
+    let lastOwnership = null; // { decks: [...], missingAll: [...] }
+    let lastDeckResults = null;
+    let lastShowAlmost = false;
+    let activeComboSub = "all";
+    let activeOwnedSub = "all";
+    const decksEl = document.getElementById("decks");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    const exportBar = document.getElementById("exportBar");
+    const exportPanel = document.getElementById("exportPanel");
+    const exportText = document.getElementById("exportText");
+    const printText = document.getElementById("printText");
+    const toggleTextBtn = document.getElementById("toggleText");
+    const copyBtn = document.getElementById("copyResults");
+    const printBtn = document.getElementById("printResults");
+    const deckPick = document.getElementById("deckPick");
+    const importActions = document.getElementById("importActions");
+    const collectionStatus = document.getElementById("collectionStatus");
+    const collectionFile = document.getElementById("collectionFile");
+
+    function addDeck(name = "", text = "") {
+      deckId += 1;
+      const id = deckId;
+      const el = document.createElement("div");
+      el.className = "deck";
+      el.dataset.id = String(id);
+      el.innerHTML = `
+        <div class="deck-top">
+          <input type="text" class="deck-name" value="${escapeAttr(name || `Deck ${id}`)}" placeholder="Deck name" />
+          <button type="button" class="ghost remove-deck" title="Remove deck">Remove</button>
+        </div>
+        <textarea class="deck-text" placeholder="Paste decklist here&#10;1 Sol Ring&#10;1 Arcane Signet&#10;..."></textarea>
+        <p class="deck-meta">0 cards</p>
+      `;
+      const ta = el.querySelector("textarea");
+      ta.value = text;
+      const meta = el.querySelector(".deck-meta");
+      const refreshMeta = () => {
+        const parsed = parseDecklist(ta.value);
+        const n = parsed.main.length + parsed.commanders.length;
+        const cmd = parsed.commanders.length
+          ? ` · commander${parsed.commanders.length > 1 ? "s" : ""}: ${parsed.commanders.map(c => c.card).join(", ")}`
+          : "";
+        meta.textContent = `${n} cards${cmd}`;
+      };
+      ta.addEventListener("input", refreshMeta);
+      el.querySelector(".remove-deck").addEventListener("click", () => {
+        if (decksEl.children.length <= 1) {
+          ta.value = "";
+          el.querySelector(".deck-name").value = `Deck ${id}`;
+          refreshMeta();
+          return;
+        }
+        el.remove();
+      });
+      decksEl.appendChild(el);
+      refreshMeta();
+      return el;
+    }
+
+    function escapeAttr(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function normalizeName(name) {
+      return name
+        .replace(/\s*\/\/\s*/g, " // ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function parseDecklist(raw) {
+      const commanders = [];
+      const main = [];
+      let section = "main";
+
+      for (const rawLine of raw.split(/\r?\n/)) {
+        let line = rawLine.trim();
+        if (!line) continue;
+        if (line.startsWith("#")) continue;
+        if (/^about\b/i.test(line)) continue;
+
+        const sec = line.match(SECTION_RE);
+        if (sec) {
+          const key = sec[1].toLowerCase();
+          if (key.startsWith("commander")) section = "commander";
+          else if (key.startsWith("side") || key.startsWith("maybe") || key.startsWith("consider")) section = "ignore";
+          else section = "main";
+          continue;
+        }
+
+        // Strip Moxfield tags like *CMDR*
+        line = line.replace(/\s*\*(?:CMDR|F|E)\*\s*$/i, "").trim();
+
+        const m = line.match(CARD_LINE_RE);
+        if (!m) continue;
+        const qty = Math.max(1, parseInt(m[1] || "1", 10) || 1);
+        let name = normalizeName(m[2]);
+        // Drop trailing set codes already handled; also strip "FOIL" suffixes
+        name = name.replace(/\s+FOIL$/i, "").trim();
+        if (!name || name.length < 2) continue;
+        if (/^(deck|sideboard|maybeboard)$/i.test(name)) continue;
+
+        const entry = { card: name, quantity: qty };
+        if (section === "commander") commanders.push(entry);
+        else if (section === "main") main.push(entry);
+      }
+
+      return { commanders, main };
+    }
+
+    function cardKey(name) {
+      return normalizeName(name).toLowerCase();
+    }
+
+    function isBasicLand(name) {
+      return BASIC_LANDS.has(cardKey(name));
+    }
+
+    function gatherDecks() {
+      return [...decksEl.querySelectorAll(".deck")].map((el, i) => {
+        const name = el.querySelector(".deck-name").value.trim() || `Deck ${i + 1}`;
+        const text = el.querySelector(".deck-text").value;
+        const parsed = parseDecklist(text);
+        const all = [...parsed.commanders, ...parsed.main];
+        const names = new Map();
+        for (const c of all) {
+          const k = cardKey(c.card);
+          if (!names.has(k)) names.set(k, { name: c.card, quantity: 0 });
+          names.get(k).quantity += c.quantity;
+        }
+        return { name, text, parsed, names };
+      });
+    }
+
+    function findShared(decks, { excludeBasics }) {
+      const map = new Map();
+      decks.forEach((d, idx) => {
+        for (const [key, info] of d.names) {
+          if (excludeBasics && isBasicLand(info.name)) continue;
+          if (!map.has(key)) map.set(key, { name: info.name, decks: [], totalQty: 0 });
+          const row = map.get(key);
+          row.decks.push({ index: idx, name: d.name, quantity: info.quantity });
+          row.totalQty += info.quantity;
+        }
+      });
+
+      return [...map.values()]
+        .filter((r) => r.decks.length >= 2)
+        .sort((a, b) => b.decks.length - a.decks.length || a.name.localeCompare(b.name));
+    }
+
+    function setStatus(msg, kind = "") {
+      statusEl.textContent = msg;
+      statusEl.className = "status" + (kind ? ` ${kind}` : "");
+    }
+
+    async function fetchCombos(parsed) {
+      const body = {
+        commanders: parsed.commanders.length
+          ? parsed.commanders
+          : [],
+        main: parsed.main,
+      };
+      // If no commander section, put everything in main (API still works)
+      if (!body.commanders.length && !body.main.length) {
+        return { included: [], almostIncluded: [] };
+      }
+
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`Spellbook API ${res.status}: ${t.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      const results = data.results || data;
+      return {
+        included: results.included || [],
+        almostIncluded: results.almostIncluded || [],
+      };
+    }
+
+    function comboCards(variant) {
+      return (variant.uses || []).map((u) => u.card?.name || "?").filter(Boolean);
+    }
+
+    function comboProduces(variant) {
+      return (variant.produces || []).map((p) => p.feature?.name || "?").filter(Boolean);
+    }
+
+    function wireMainTabs() {
+      const tabs = document.querySelectorAll("#mainTabs .tab");
+      const panels = document.querySelectorAll("[data-main-panel]");
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const id = tab.getAttribute("data-main-tab");
+          tabs.forEach((t) => t.classList.toggle("active", t === tab));
+          panels.forEach((p) => p.classList.toggle("active", p.getAttribute("data-main-panel") === id));
+        });
+      });
+    }
+
+    function setMainTabBadge(tabId, count) {
+      const tab = document.querySelector(`#mainTabs .tab[data-main-tab="${tabId}"]`);
+      if (!tab) return;
+      let badge = tab.querySelector(".count-badge");
+      if (count == null || count === "") {
+        if (badge) badge.remove();
+        return;
+      }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "count-badge";
+        tab.appendChild(badge);
+      }
+      badge.textContent = String(count);
+    }
+
+    function wireSubtabs(container, panelRoot, storageKey) {
+      const buttons = [...container.querySelectorAll(".subtab")];
+      const panels = [...panelRoot.querySelectorAll(".panel-sub")];
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-sub");
+          if (storageKey === "combo") activeComboSub = id;
+          if (storageKey === "owned") activeOwnedSub = id;
+          buttons.forEach((b) => b.classList.toggle("active", b === btn));
+          panels.forEach((p) => p.classList.toggle("active", p.getAttribute("data-sub-panel") === id));
+        });
+      });
+    }
+
+    function renderShared(shared, decks) {
+      const filters = document.getElementById("sharedFilters");
+      filters.innerHTML = decks
+        .map((d) => `<span class="pill on">${escapeHtml(d.name)}</span>`)
+        .join("");
+
+      setMainTabBadge("shared", shared.length);
+
+      if (!shared.length) {
+        document.getElementById("sharedTable").innerHTML =
+          `<p class="empty">No shared cards across these decks${document.getElementById("excludeBasics").checked ? " (basics ignored)" : ""}.</p>`;
+        return;
+      }
+
+      const rows = shared.map((row) => {
+        const tags = row.decks
+          .map((d) => `<span class="tag">${escapeHtml(d.name)} ×${d.quantity}</span>`)
+          .join("");
+        return `<tr>
+          <td><strong>${escapeHtml(row.name)}</strong></td>
+          <td class="count">${row.decks.length}/${decks.length}</td>
+          <td><div class="deck-tags">${tags}</div></td>
+        </tr>`;
+      }).join("");
+
+      document.getElementById("sharedTable").innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Card</th>
+              <th>In decks</th>
+              <th class="hide-sm">Where</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function renderComboCard(v, almost = false) {
+      const cards = comboCards(v).join(" + ");
+      const produces = comboProduces(v).join(", ");
+      const desc = [v.easyPrerequisites, v.notablePrerequisites, v.description]
+        .filter(Boolean)
+        .join("\n");
+      const href = `https://commanderspellbook.com/combo/${encodeURIComponent(v.id)}/`;
+      const miss = almost && v.missing
+        ? `<div class="produces" style="color:var(--warn)">Missing: ${(v.missing || []).join(", ")}</div>`
+        : "";
+      return `<article class="combo">
+        <h4>${escapeHtml(cards)}</h4>
+        <div class="produces">${escapeHtml(produces || "—")}</div>
+        ${miss}
+        <div class="desc">${escapeHtml(desc.slice(0, 480))}${desc.length > 480 ? "…" : ""}</div>
+        <p style="margin:0.45rem 0 0"><a href="${href}" target="_blank" rel="noopener">View on Spellbook →</a></p>
+      </article>`;
+    }
+
+    function deckComboPanelHtml({ deck, combos, error }, showAlmost) {
+      if (error) {
+        return `<p class="empty" style="color:var(--danger)">${escapeHtml(error)}</p>`;
+      }
+      const included = combos.included || [];
+      const almost = (combos.almostIncluded || [])
+        .map((v) => annotateAlmost(v, deck.names))
+        .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+      const includedHtml = included.length
+        ? `<div class="combo-grid">${included
+            .slice()
+            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+            .map((v) => renderComboCard(v))
+            .join("")}</div>`
+        : `<p class="empty">No fully included combos found.</p>`;
+
+      const almostHtml = showAlmost
+        ? `<details class="almost" open>
+            <summary>Almost included (${almost.length})</summary>
+            <div class="combo-grid">${almost.slice(0, 40).map((v) => renderComboCard(v, true)).join("") || '<p class="empty">None</p>'}</div>
+          </details>`
+        : "";
+
+      return `${includedHtml}${almostHtml}`;
+    }
+
+    function renderCombos(deckResults, showAlmost) {
+      lastDeckResults = deckResults;
+      lastShowAlmost = showAlmost;
+      const sub = document.getElementById("comboSubtabs");
+      const root = document.getElementById("comboResults");
+
+      const totalCombos = deckResults.reduce((n, r) => n + (r.combos?.included?.length || 0), 0);
+      setMainTabBadge("combos", totalCombos);
+
+      if (!deckResults.length) {
+        sub.innerHTML = "";
+        root.innerHTML = `<p class="empty">No decks analyzed.</p>`;
+        return;
+      }
+
+      // Keep prior subtab if still valid
+      const ids = ["all", ...deckResults.map((_, i) => `d${i}`)];
+      if (!ids.includes(activeComboSub)) activeComboSub = "all";
+
+      sub.innerHTML = [
+        `<button type="button" class="subtab${activeComboSub === "all" ? " active" : ""}" data-sub="all">All decks</button>`,
+        ...deckResults.map(({ deck, combos, error }, i) => {
+          const count = error ? "!" : String((combos?.included || []).length);
+          return `<button type="button" class="subtab${activeComboSub === `d${i}` ? " active" : ""}" data-sub="d${i}">${escapeHtml(deck.name)} <span class="count-badge">${count}</span></button>`;
+        }),
+      ].join("");
+
+      const allHtml = deckResults.map((block, i) => {
+        const count = block.error ? 0 : (block.combos?.included || []).length;
+        return `<div class="deck-block">
+          <h3>${escapeHtml(block.deck.name)} <span>${count} combo${count === 1 ? "" : "s"}</span></h3>
+          ${deckComboPanelHtml(block, showAlmost)}
+        </div>`;
+      }).join("");
+
+      root.innerHTML = [
+        `<div class="panel-sub${activeComboSub === "all" ? " active" : ""}" data-sub-panel="all">${allHtml}</div>`,
+        ...deckResults.map((block, i) => {
+          const count = block.error ? 0 : (block.combos?.included || []).length;
+          return `<div class="panel-sub${activeComboSub === `d${i}` ? " active" : ""}" data-sub-panel="d${i}">
+            <h3 style="margin-top:0">${escapeHtml(block.deck.name)} <span style="color:var(--muted);font-size:0.85rem;font-weight:500">${count} combo${count === 1 ? "" : "s"}</span></h3>
+            ${deckComboPanelHtml(block, showAlmost)}
+          </div>`;
+        }),
+      ].join("");
+
+      wireSubtabs(sub, root, "combo");
+    }
+
+    function ownershipDeckHtml({ deck, missing, owned }) {
+      const missRows = missing.map((row) => `
+        <tr>
+          <td>${escapeHtml(row.name)}</td>
+          <td class="owned-no">need ${row.need}, have ${row.have}</td>
+          <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
+        </tr>`).join("");
+      return `
+        <p class="sub" style="margin-top:0">${owned.length} owned · <span class="owned-no">${missing.length} missing</span></p>
+        ${missing.length
+          ? `<table><thead><tr><th>Missing</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
+          : `<p class="empty" style="color:var(--accent)">Nothing missing for this deck.</p>`}
+      `;
+    }
+
+    function renderOwnership(ownership) {
+      const sub = document.getElementById("ownedSubtabs");
+      const root = document.getElementById("ownedResults");
+
+      if (!ownership) {
+        setMainTabBadge("owned", null);
+        sub.innerHTML = "";
+        root.innerHTML = `<p class="empty">Upload a ManaBox CSV to see owned vs missing cards.</p>`;
+        return;
+      }
+
+      setMainTabBadge("owned", ownership.missingAll.length);
+
+      const ids = ["all", ...ownership.perDeck.map((_, i) => `d${i}`)];
+      if (!ids.includes(activeOwnedSub)) activeOwnedSub = "all";
+
+      sub.innerHTML = [
+        `<button type="button" class="subtab${activeOwnedSub === "all" ? " active" : ""}" data-sub="all">All missing <span class="count-badge">${ownership.missingAll.length}</span></button>`,
+        ...ownership.perDeck.map(({ deck, missing }, i) =>
+          `<button type="button" class="subtab${activeOwnedSub === `d${i}` ? " active" : ""}" data-sub="d${i}">${escapeHtml(deck.name)} <span class="count-badge">${missing.length}</span></button>`
+        ),
+      ].join("");
+
+      const allRows = ownership.missingAll.map((row) => {
+        const short = Math.max(0, row.need - row.have);
+        return `<tr>
+          <td><strong>${escapeHtml(row.name)}</strong></td>
+          <td class="owned-no">need ${row.need}, have ${row.have}${short ? ` (short ${short})` : ""}</td>
+          <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
+          <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
+        </tr>`;
+      }).join("");
+
+      const allPanel = ownership.missingAll.length
+        ? `<table>
+             <thead><tr><th>Card</th><th>Owned</th><th class="hide-sm">Decks</th><th></th></tr></thead>
+             <tbody>${allRows}</tbody>
+           </table>`
+        : `<p class="empty" style="color:var(--accent)">All compared cards are owned (or marked owned).</p>`;
+
+      root.innerHTML = [
+        `<div class="panel-sub${activeOwnedSub === "all" ? " active" : ""}" data-sub-panel="all">${allPanel}</div>`,
+        ...ownership.perDeck.map((block, i) =>
+          `<div class="panel-sub${activeOwnedSub === `d${i}` ? " active" : ""}" data-sub-panel="d${i}">
+            <h3 style="margin-top:0">${escapeHtml(block.deck.name)}</h3>
+            ${ownershipDeckHtml(block)}
+          </div>`
+        ),
+      ].join("");
+
+      wireSubtabs(sub, root, "owned");
+      root.querySelectorAll(".mark-owned").forEach((btn) => {
+        btn.addEventListener("click", () => markOwned(btn.getAttribute("data-name")));
+      });
+    }
+
+    function annotateAlmost(variant, deckNames) {
+      // Spellbook almostIncluded often has requires/uses; missing cards aren't always explicit.
+      // Infer missing as uses not in deck.
+      const have = deckNames;
+      const missing = comboCards(variant).filter((n) => !have.has(cardKey(n)));
+      return { ...variant, missing };
+    }
+
+    function updateCollectionStatus() {
+      if (!collectionState) {
+        collectionStatus.textContent = "No collection loaded yet.";
+        return;
+      }
+      const sources = collectionState.sources || {};
+      const parts = [];
+      if (sources.manabox?.present) {
+        parts.push(
+          `ManaBox/CSV: ${sources.manabox.source_filename || "collection.csv"} (${sources.manabox.unique_cards || 0} unique)`
+        );
+      }
+      if (sources.deckstats?.present) {
+        const label = sources.deckstats.title || ("#" + (sources.deckstats.collection_id || "?"));
+        parts.push(
+          `Deckstats: ${label} (${sources.deckstats.unique_cards || 0} unique)`
+        );
+      }
+      const ovr = collectionState.override_count || 0;
+      if (ovr) parts.push(`${ovr} local mark-owned override${ovr === 1 ? "" : "s"}`);
+
+      if (!parts.length) {
+        collectionStatus.textContent = "No collection loaded yet.";
+        return;
+      }
+      collectionStatus.textContent =
+        `Merged ${collectionState.unique_cards || 0} unique / ${collectionState.total_copies || 0} copies · ` +
+        parts.join(" · ");
+    }
+
+    async function loadCollection(full = true) {
+      const res = await fetch(`/api/collection${full ? "?full=1" : ""}`);
+      const data = await res.json();
+      if (!data.ok && data.error) throw new Error(data.error);
+      collectionState = data;
+      updateCollectionStatus();
+      return data;
+    }
+
+    async function uploadCollectionFile(file) {
+      const csv = await file.text();
+      const res = await fetch("/api/collection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv, filename: file.name }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Upload failed");
+      await loadCollection(true);
+      setStatus(
+        `Saved ManaBox collection locally (${data.unique_cards} unique cards).`,
+        "ok"
+      );
+    }
+
+    function ownedQuantity(cardName) {
+      if (!collectionState) return 0;
+      const key = cardKey(cardName);
+      const overrides = new Set(collectionState.override_keys || []);
+      if (overrides.has(key)) return Math.max(1, collectionState.cards?.[key]?.quantity || 1);
+
+      const cards = collectionState.cards || {};
+      if (cards[key]?.quantity) return cards[key].quantity;
+
+      // Deck may list a face; collection may store full DFC
+      for (const [k, info] of Object.entries(cards)) {
+        if (!k.includes(" // ")) continue;
+        const faces = k.split(" // ").map((s) => s.trim());
+        if (faces.includes(key) && info.quantity) return info.quantity;
+      }
+      // Deck lists full DFC; collection has a face
+      if (key.includes(" // ")) {
+        for (const face of key.split(" // ")) {
+          const fk = face.trim();
+          if (cards[fk]?.quantity) return cards[fk].quantity;
+          if (overrides.has(fk)) return 1;
+        }
+      }
+      return 0;
+    }
+
+    function isEffectivelyOwned(cardName) {
+      return ownedQuantity(cardName) > 0;
+    }
+
+    function computeOwnership(decks, { excludeBasics }) {
+      if (!collectionState?.has_collection && !(collectionState?.override_count > 0)) {
+        return null;
+      }
+      const perDeck = decks.map((deck) => {
+        const missing = [];
+        const owned = [];
+        for (const info of deck.names.values()) {
+          if (excludeBasics && isBasicLand(info.name)) continue;
+          const have = ownedQuantity(info.name);
+          const row = {
+            name: info.name,
+            need: info.quantity,
+            have,
+            short: Math.max(0, info.quantity - have),
+          };
+          if (have >= info.quantity) owned.push(row);
+          else missing.push(row);
+        }
+        missing.sort((a, b) => a.name.localeCompare(b.name));
+        owned.sort((a, b) => a.name.localeCompare(b.name));
+        return { deck, missing, owned };
+      });
+
+      const allMap = new Map();
+      for (const block of perDeck) {
+        for (const row of block.missing) {
+          const k = cardKey(row.name);
+          if (!allMap.has(k)) {
+            allMap.set(k, {
+              name: row.name,
+              need: 0,
+              have: row.have,
+              decks: [],
+            });
+          }
+          const agg = allMap.get(k);
+          agg.need = Math.max(agg.need, row.need);
+          agg.have = Math.min(agg.have, row.have);
+          agg.decks.push(block.deck.name);
+        }
+      }
+      const missingAll = [...allMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+      return { perDeck, missingAll };
+    }
+
+    async function markOwned(name) {
+      if (!name) return;
+      try {
+        const res = await fetch("/api/collection/owned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ add: [name] }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Failed");
+        await loadCollection(true);
+        // Refresh ownership view if we have last decks
+        if (lastOwnership) {
+          const decks = gatherDecks().filter((d) => d.names.size > 0);
+          const excludeBasics = document.getElementById("excludeBasicsOwned").checked;
+          lastOwnership = computeOwnership(decks, { excludeBasics });
+          renderOwnership(lastOwnership);
+          // Refresh export text if results visible
+          if (resultsEl.classList.contains("show") && lastReportText) {
+            // rebuild ownership section only by re-running light report if we stored inputs — skip full combo re-fetch
+          }
+        }
+        setStatus(`Marked “${name}” as owned (saved locally).`, "ok");
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      }
+    }
+
+    function buildReportText(shared, decks, deckResults, showAlmost, ownership) {
+      const lines = [];
+      const date = new Date().toLocaleString();
+      lines.push("DECK DUPES & COMBOS");
+      lines.push(`Generated: ${date}`);
+      lines.push(`Decks: ${decks.map((d) => d.name).join(", ")}`);
+      lines.push("");
+
+      lines.push("======== OWNED VS MISSING ========");
+      if (!ownership) {
+        lines.push("(no ManaBox collection loaded)");
+      } else if (!ownership.missingAll.length) {
+        lines.push("All compared cards are owned (or marked owned).");
+      } else {
+        lines.push(`Missing across decks (${ownership.missingAll.length}):`);
+        for (const row of ownership.missingAll) {
+          lines.push(
+            `- ${row.name} (need ${row.need}, have ${row.have}) [${row.decks.join(", ")}]`
+          );
+        }
+        for (const block of ownership.perDeck) {
+          lines.push("");
+          lines.push(`--- ${block.deck.name} missing (${block.missing.length}) ---`);
+          if (!block.missing.length) {
+            lines.push("(none)");
+          } else {
+            for (const row of block.missing) {
+              lines.push(`- ${row.name} (need ${row.need}, have ${row.have})`);
+            }
+          }
+        }
+      }
+      lines.push("");
+
+      lines.push("======== SHARED CARDS ========");
+      if (!shared.length) {
+        lines.push("(none)");
+      } else {
+        for (const row of shared) {
+          const where = row.decks.map((d) => `${d.name} x${d.quantity}`).join("; ");
+          lines.push(`${row.name}`);
+          lines.push(`  in ${row.decks.length}/${decks.length} decks — ${where}`);
+        }
+      }
+      lines.push("");
+
+      lines.push("======== COMBOS BY DECK ========");
+      for (const { deck, combos, error } of deckResults) {
+        lines.push("");
+        lines.push(`--- ${deck.name} ---`);
+        if (error) {
+          lines.push(`Error: ${error}`);
+          continue;
+        }
+        const included = (combos.included || [])
+          .slice()
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        if (!included.length) {
+          lines.push("No fully included combos.");
+        } else {
+          lines.push(`Included combos (${included.length}):`);
+          included.forEach((v, i) => {
+            const cards = comboCards(v).join(" + ");
+            const produces = comboProduces(v).join(", ");
+            lines.push(`${i + 1}. ${cards}`);
+            lines.push(`   Result: ${produces || "—"}`);
+            const href = `https://commanderspellbook.com/combo/${v.id}/`;
+            lines.push(`   ${href}`);
+          });
+        }
+
+        if (showAlmost) {
+          const almost = (combos.almostIncluded || [])
+            .map((v) => annotateAlmost(v, deck.names))
+            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+            .slice(0, 40);
+          lines.push("");
+          lines.push(`Almost included (${almost.length} shown):`);
+          if (!almost.length) {
+            lines.push("(none)");
+          } else {
+            almost.forEach((v, i) => {
+              const cards = comboCards(v).join(" + ");
+              const produces = comboProduces(v).join(", ");
+              const miss = (v.missing || []).join(", ");
+              lines.push(`${i + 1}. ${cards}`);
+              lines.push(`   Result: ${produces || "—"}`);
+              if (miss) lines.push(`   Missing: ${miss}`);
+            });
+          }
+        }
+      }
+
+      lines.push("");
+      lines.push("Combo data: Commander Spellbook (commanderspellbook.com)");
+      return lines.join("\n");
+    }
+
+    function setExportReady(text) {
+      lastReportText = text;
+      exportText.value = text;
+      printText.textContent = text;
+      exportBar.classList.add("show");
+    }
+
+    function clearExport() {
+      lastReportText = "";
+      exportText.value = "";
+      printText.textContent = "";
+      exportBar.classList.remove("show");
+      exportPanel.classList.remove("show");
+      toggleTextBtn.textContent = "Show plain text";
+    }
+
+    async function copyResults() {
+      if (!lastReportText) {
+        setStatus("Run Analyze first.", "error");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(lastReportText);
+        setStatus("Results copied to clipboard.", "ok");
+      } catch {
+        exportPanel.classList.add("show");
+        toggleTextBtn.textContent = "Hide plain text";
+        exportText.focus();
+        exportText.select();
+        setStatus("Clipboard blocked — plain text selected so you can Ctrl+C.", "error");
+      }
+    }
+
+    function printResults() {
+      if (!lastReportText) {
+        setStatus("Run Analyze first.", "error");
+        return;
+      }
+      window.print();
+    }
+
+    async function analyze() {
+      const decks = gatherDecks().filter((d) => d.names.size > 0);
+      if (decks.length < 1) {
+        setStatus("Paste at least one decklist.", "error");
+        resultsEl.classList.remove("show");
+        clearExport();
+        return;
+      }
+
+      const excludeBasics = document.getElementById("excludeBasics").checked;
+      const excludeBasicsOwned = document.getElementById("excludeBasicsOwned").checked;
+      const showAlmost = document.getElementById("showAlmost").checked;
+
+      const shared = findShared(decks, { excludeBasics });
+      renderShared(shared, decks);
+      lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
+      renderOwnership(lastOwnership);
+      resultsEl.classList.add("show");
+
+      const btn = document.getElementById("analyze");
+      btn.disabled = true;
+      setStatus(`Looking up combos for ${decks.length} deck${decks.length > 1 ? "s" : ""}…`);
+
+      const deckResults = [];
+      for (let i = 0; i < decks.length; i++) {
+        const deck = decks[i];
+        setStatus(`Looking up combos ${i + 1}/${decks.length}: ${deck.name}…`);
+        try {
+          const combos = await fetchCombos(deck.parsed);
+          deckResults.push({ deck, combos });
+        } catch (err) {
+          deckResults.push({ deck, combos: null, error: String(err.message || err) });
+        }
+        // Be polite to the API
+        if (i < decks.length - 1) await new Promise((r) => setTimeout(r, 350));
+      }
+
+      renderCombos(deckResults, showAlmost);
+      setExportReady(buildReportText(shared, decks, deckResults, showAlmost, lastOwnership));
+      const comboCount = deckResults.reduce((n, r) => n + (r.combos?.included?.length || 0), 0);
+      const missCount = lastOwnership?.missingAll?.length || 0;
+      const ownedNote = lastOwnership
+        ? `, ${missCount} missing from collection`
+        : "";
+      setStatus(
+        `Done — ${shared.length} shared card${shared.length === 1 ? "" : "s"}, ${comboCount} included combo${comboCount === 1 ? "" : "s"}${ownedNote}.`,
+        "ok"
+      );
+      btn.disabled = false;
+    }
+
+    function checkCors() {
+      if (location.protocol === "file:") {
+        document.getElementById("corsNotice").classList.add("show");
+      }
+    }
+
+    document.getElementById("addDeck").addEventListener("click", () => addDeck());
+    document.getElementById("clearDecks").addEventListener("click", () => {
+      if (!confirm("Remove all pasted/imported decks from this page?")) return;
+      decksEl.innerHTML = "";
+      deckId = 0;
+      addDeck("Deck 1");
+      resultsEl.classList.remove("show");
+      clearExport();
+      lastOwnership = null;
+      lastDeckResults = null;
+      setStatus("All decks cleared.", "ok");
+    });
+    document.getElementById("analyze").addEventListener("click", analyze);
+    copyBtn.addEventListener("click", copyResults);
+    printBtn.addEventListener("click", printResults);
+    toggleTextBtn.addEventListener("click", () => {
+      const open = exportPanel.classList.toggle("show");
+      toggleTextBtn.textContent = open ? "Hide plain text" : "Show plain text";
+      if (open) {
+        exportText.focus();
+        exportText.select();
+      }
+    });
+
+    async function loadDeckstatsProfile() {
+      const url = document.getElementById("deckstatsUrl").value.trim();
+      if (!url) {
+        setStatus("Paste your Deckstats profile URL first.", "error");
+        return;
+      }
+      const btn = document.getElementById("loadDeckstats");
+      btn.disabled = true;
+      setStatus("Loading Deckstats profile…");
+      try {
+        const res = await fetch(`/api/deckstats/profile?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Failed to load profile");
+        deckstatsOwnerId = data.owner_id;
+        deckstatsDecks = data.decks || [];
+        if (!deckstatsDecks.length) {
+          deckPick.classList.remove("show");
+          importActions.classList.remove("show");
+          setStatus(`No public decks found for ${data.username}.`, "error");
+          return;
+        }
+        deckPick.innerHTML = deckstatsDecks.map((d, i) => `
+          <label>
+            <input type="checkbox" class="ds-deck" value="${d.id}" ${i < 2 ? "checked" : ""} />
+            <span>
+              <strong>${escapeHtml(d.name)}</strong>
+              <div class="meta">${escapeHtml(d.format || "Format ?")}${d.cards != null ? ` · ${d.cards} cards` : ""}${d.folder ? ` · ${escapeHtml(d.folder)}` : ""}</div>
+            </span>
+          </label>
+        `).join("");
+        deckPick.classList.add("show");
+        importActions.classList.add("show");
+        const note = data.deck_count && data.deck_count > deckstatsDecks.length
+          ? ` (showing ${deckstatsDecks.length} of ${data.deck_count})`
+          : "";
+        setStatus(`Loaded ${deckstatsDecks.length} public deck${deckstatsDecks.length === 1 ? "" : "s"} for ${data.username}${note}.`, "ok");
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function selectedDeckstatsIds() {
+      return [...deckPick.querySelectorAll(".ds-deck:checked")].map((el) => el.value);
+    }
+
+    async function importSelectedDeckstats() {
+      const ids = selectedDeckstatsIds();
+      if (!deckstatsOwnerId || !ids.length) {
+        setStatus("Select at least one deck to import.", "error");
+        return;
+      }
+      const btn = document.getElementById("importDecks");
+      btn.disabled = true;
+      // Replace empty starter decks if those are the only ones
+      const existing = [...decksEl.querySelectorAll(".deck")];
+      const onlyEmptyStarters = existing.length > 0 && existing.every((el) => !el.querySelector(".deck-text").value.trim());
+      if (onlyEmptyStarters) {
+        decksEl.innerHTML = "";
+      }
+
+      let ok = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        const meta = deckstatsDecks.find((d) => String(d.id) === String(id));
+        setStatus(`Importing ${i + 1}/${ids.length}: ${meta?.name || id}…`);
+        try {
+          const res = await fetch(`/api/deckstats/deck?owner_id=${encodeURIComponent(deckstatsOwnerId)}&deck_id=${encodeURIComponent(id)}`);
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || "Import failed");
+          addDeck(data.name, data.list);
+          ok += 1;
+        } catch (err) {
+          setStatus(`Failed on ${meta?.name || id}: ${err.message || err}`, "error");
+        }
+        if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 250));
+      }
+      btn.disabled = false;
+      if (ok) setStatus(`Imported ${ok} deck${ok === 1 ? "" : "s"} from Deckstats.`, "ok");
+    }
+
+    document.getElementById("loadDeckstats").addEventListener("click", loadDeckstatsProfile);
+    document.getElementById("importDecks").addEventListener("click", importSelectedDeckstats);
+    document.getElementById("selectAllDecks").addEventListener("click", () => {
+      deckPick.querySelectorAll(".ds-deck").forEach((el) => { el.checked = true; });
+    });
+    document.getElementById("selectNoneDecks").addEventListener("click", () => {
+      deckPick.querySelectorAll(".ds-deck").forEach((el) => { el.checked = false; });
+    });
+    document.getElementById("deckstatsUrl").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") loadDeckstatsProfile();
+    });
+
+    document.getElementById("pickCollection").addEventListener("click", () => collectionFile.click());
+    collectionFile.addEventListener("change", async () => {
+      const file = collectionFile.files?.[0];
+      if (!file) return;
+      try {
+        setStatus(`Parsing ${file.name}…`);
+        await uploadCollectionFile(file);
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      }
+      collectionFile.value = "";
+    });
+    document.getElementById("refreshCollection").addEventListener("click", async () => {
+      try {
+        await loadCollection(true);
+        setStatus("Collection status refreshed.", "ok");
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      }
+    });
+    document.getElementById("clearCollection").addEventListener("click", async () => {
+      if (!confirm("Clear saved ownership data (CSV + Deckstats pull)?")) {
+        return;
+      }
+      const clearOverrides = confirm("Also clear local “mark owned” overrides?");
+      try {
+        const res = await fetch(
+          `/api/collection?source=all&overrides=${clearOverrides ? "1" : "0"}`,
+          { method: "DELETE" }
+        );
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Clear failed");
+        await loadCollection(true);
+        setStatus("Saved ownership data cleared.", "ok");
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      }
+    });
+
+    async function loadDeckstatsCollection() {
+      const url = document.getElementById("deckstatsCollectionUrl").value.trim();
+      if (!url) {
+        setStatus("Paste your public Deckstats collection URL or id.", "error");
+        return;
+      }
+      const btn = document.getElementById("loadDeckstatsCollection");
+      btn.disabled = true;
+      setStatus("Pulling Deckstats collection…");
+      try {
+        const res = await fetch("/api/collection/deckstats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Failed to pull collection");
+        await loadCollection(true);
+        const ds = data.sources?.deckstats;
+        setStatus(
+          `Saved Deckstats collection${ds?.title ? ` “${ds.title}”` : ""} (${ds?.unique_cards || data.unique_cards} unique).`,
+          "ok"
+        );
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("loadDeckstatsCollection").addEventListener("click", loadDeckstatsCollection);
+    document.getElementById("deckstatsCollectionUrl").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") loadDeckstatsCollection();
+    });
+
+    checkCors();
+    wireMainTabs();
+    addDeck("Deck 1");
+    addDeck("Deck 2");
+    loadCollection(true).catch(() => {
+      collectionStatus.textContent = "Could not load saved collection (is server.py running?).";
+    });
+  </script>
+</body>
+</html>
