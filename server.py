@@ -23,18 +23,39 @@ COLLECTION_PATH = DATA_DIR / "collection.json"  # ManaBox / CSV upload
 DECKSTATS_COLLECTION_PATH = DATA_DIR / "deckstats_collection.json"
 OVERRIDES_PATH = DATA_DIR / "owned_overrides.json"
 
+def _pip_install(package: str) -> None:
+    import subprocess
+
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q"])
+
+
+try:
+    from curl_cffi import requests as curl_requests
+except ImportError:
+    try:
+        _pip_install("curl_cffi")
+        from curl_cffi import requests as curl_requests
+    except Exception:
+        curl_requests = None  # type: ignore
+
 try:
     import cloudscraper
 except ImportError:
-    import subprocess
-
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "cloudscraper", "-q"])
+    _pip_install("cloudscraper")
     import cloudscraper
 
 
-SCRAPER = cloudscraper.create_scraper(
-    browser={"browser": "chrome", "platform": "windows", "mobile": False}
-)
+SCRAPER = None
+USE_CURL_CFFI = curl_requests is not None
+
+
+def get_scraper():
+    global SCRAPER
+    if SCRAPER is None:
+        SCRAPER = cloudscraper.create_scraper(
+            browser={"browser": "chrome", "platform": "windows", "mobile": False}
+        )
+    return SCRAPER
 
 
 def ensure_data_dir() -> None:
@@ -45,8 +66,34 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _response_has_inertia(resp) -> bool:
+    text = getattr(resp, "text", None) or ""
+    return 'data-page="app"' in text or "data-page='app'" in text
+
+
 def fetch(url: str, params: dict | None = None):
-    return SCRAPER.get(url, params=params or {}, timeout=60)
+    """Fetch URL, preferring curl_cffi (better against Cloudflare on cloud hosts)."""
+    params = params or {}
+    errors: list[str] = []
+    if USE_CURL_CFFI:
+        try:
+            resp = curl_requests.get(
+                url,
+                params=params,
+                impersonate="chrome",
+                timeout=45,
+            )
+            if resp.status_code < 400 and (
+                _response_has_inertia(resp) or not looks_like_cloudflare_challenge(resp.text)
+            ):
+                return resp
+            errors.append(f"curl_cffi HTTP {resp.status_code}")
+        except Exception as e:
+            errors.append(f"curl_cffi: {e}")
+    resp = get_scraper().get(url, params=params, timeout=45)
+    if errors and resp.status_code >= 400:
+        raise ValueError("; ".join(errors + [f"cloudscraper HTTP {resp.status_code}"]))
+    return resp
 
 
 def normalize_name(name: str) -> str:
@@ -58,24 +105,67 @@ def name_key(name: str) -> str:
 
 
 def parse_owner_from_input(raw: str) -> str:
+    return parse_profile_input(raw)["owner_id"]
+
+
+def parse_profile_input(raw: str) -> dict:
+    """Extract owner id and preferred profile URLs from pasted text."""
     text = (raw or "").strip()
     if not text:
         raise ValueError("Paste a Deckstats profile URL or user id.")
 
-    m = re.search(r"deckstats\.net/users/(\d+)", text, re.I)
+    preferred: list[str] = []
+
+    m = re.search(
+        r"(https?://(?:www\.)?deckstats\.net/users/(\d+)(?:-[A-Za-z0-9_]+)?)",
+        text,
+        re.I,
+    )
     if m:
-        return m.group(1)
+        preferred.append(m.group(1).split("?")[0].rstrip("/"))
+        owner_id = m.group(2)
+        return {"owner_id": owner_id, "preferred_urls": preferred}
+
+    m = re.search(
+        r"(https?://(?:www\.)?deckstats\.net/decks/(\d+)(?:-[A-Za-z0-9_]+)?/?)",
+        text,
+        re.I,
+    )
+    if m:
+        preferred.append(m.group(1).split("?")[0])
+        owner_id = m.group(2)
+        return {"owner_id": owner_id, "preferred_urls": preferred}
+
+    m = re.search(r"deckstats\.net/users/(\d+)(?:-([A-Za-z0-9_]+))?", text, re.I)
+    if m:
+        owner_id = m.group(1)
+        if m.group(2):
+            preferred.append(f"https://deckstats.net/users/{owner_id}-{m.group(2)}")
+        return {"owner_id": owner_id, "preferred_urls": preferred}
 
     m = re.search(r"deckstats\.net/decks/(\d+)", text, re.I)
     if m:
-        return m.group(1)
+        return {"owner_id": m.group(1), "preferred_urls": preferred}
 
     if re.fullmatch(r"\d+", text):
-        return text
+        return {"owner_id": text, "preferred_urls": preferred}
 
     raise ValueError(
         "Could not find a user id. Paste something like "
         "https://deckstats.net/users/123456-YourName"
+    )
+
+
+def looks_like_cloudflare_challenge(html: str) -> bool:
+    """True only for actual interstitial pages, not normal Deckstats HTML that mentions Cloudflare."""
+    low = (html or "").lower()
+    if 'data-page="app"' in low or "data-page='app'" in low:
+        return False
+    return (
+        "just a moment" in low
+        or "cf-browser-verification" in low
+        or "cdn-cgi/challenge-platform" in low
+        or ("attention required" in low and "cloudflare" in low)
     )
 
 
@@ -90,32 +180,32 @@ def extract_inertia_props(html: str) -> dict:
         if m:
             data = json.loads(m.group(1))
             return data.get("props") or data
-    raise ValueError("Could not read Deckstats profile page (layout may have changed).")
+    if looks_like_cloudflare_challenge(html):
+        raise ValueError(
+            "Deckstats blocked this server behind Cloudflare. "
+            "Paste decklists manually, or use Load decks from your local copy of the app."
+        )
+    raise ValueError(
+        "Could not read Deckstats profile page (layout may have changed, or the host is blocked)."
+    )
 
 
-def load_profile(owner_id: str) -> dict:
-    candidates = [
+def profile_candidate_urls(owner_id: str, preferred_urls: list[str] | None = None) -> list[str]:
+    candidates: list[str] = []
+    for url in preferred_urls or []:
+        u = (url or "").strip()
+        if u and u not in candidates:
+            candidates.append(u)
+    for url in (
         f"https://deckstats.net/users/{owner_id}",
         f"https://deckstats.net/decks/{owner_id}/",
-    ]
-    last_err = None
-    props = None
-    used = None
-    for url in candidates:
-        try:
-            r = fetch(url)
-            if r.status_code >= 400:
-                last_err = f"HTTP {r.status_code} for {url}"
-                continue
-            props = extract_inertia_props(r.text)
-            used = url
-            break
-        except Exception as e:
-            last_err = str(e)
-    if props is None:
-        raise ValueError(last_err or "Failed to load profile.")
+    ):
+        if url not in candidates:
+            candidates.append(url)
+    return candidates
 
-    profile = props.get("profile") or {}
+
+def decks_from_props(props: dict) -> list[dict]:
     folders = {
         f.get("id"): f.get("name")
         for f in (props.get("folders") or [])
@@ -140,8 +230,51 @@ def load_profile(owner_id: str) -> dict:
                 "folder_id": folder_id,
             }
         )
-
     decks.sort(key=lambda x: (x["folder"].lower(), x["name"].lower()))
+    return decks
+
+
+def load_profile(owner_id: str, preferred_urls: list[str] | None = None) -> dict:
+    candidates = profile_candidate_urls(owner_id, preferred_urls)
+    errors: list[str] = []
+    best: tuple[dict, list[dict], str] | None = None
+
+    for url in candidates:
+        try:
+            r = fetch(url)
+            if r.status_code >= 400:
+                errors.append(f"HTTP {r.status_code} for {url}")
+                continue
+            props = extract_inertia_props(r.text)
+            decks = decks_from_props(props)
+            # Prefer a page that actually lists decks (user profile), not a single-deck editor
+            if decks:
+                best = (props, decks, url)
+                break
+            if best is None:
+                best = (props, decks, url)
+                errors.append(f"No deck list in page data for {url}")
+        except Exception as e:
+            errors.append(f"{url}: {e}")
+
+    if best is None:
+        detail = "; ".join(errors) if errors else "Failed to load profile."
+        raise ValueError(
+            detail
+            + " Tip: paste the full profile URL (…/users/ID-Name). "
+            "If this host is blocked by Deckstats, paste decklists manually."
+        )
+
+    props, decks, used = best
+    if not decks and errors:
+        # Loaded something but never found a decks array — surface why
+        raise ValueError(
+            "Could not find public decks. "
+            + "; ".join(errors)
+            + " Paste decklists manually if Deckstats is blocking this host."
+        )
+
+    profile = props.get("profile") or {}
     return {
         "owner_id": int(owner_id),
         "username": profile.get("username") or profile.get("name") or str(owner_id),
@@ -383,16 +516,47 @@ def parse_deckstats_collection_id(raw: str) -> str:
     if re.fullmatch(r"\d+", text):
         return text
 
-    # Profile URL mistaken for collection
-    if re.search(r"deckstats\.net/(users|decks)/\d+", text, re.I):
+    # Profile / decks URL mistaken for collection (user id ≠ collection id)
+    m = re.search(r"deckstats\.net/(?:users|decks)/(\d+)", text, re.I)
+    if m:
         raise ValueError(
-            "That looks like a profile/decks URL. For ownership, Upload a Deckstats CSV "
-            "(Collection → Export), or paste a collection id / …/collections/12345 link."
+            f"That is your Deckstats profile (user id {m.group(1)}), not a collection. "
+            "For ownership use Collection → Export CSV → Upload CSV here. "
+            "Live pull needs a separate idcollections number from Network → collection_get "
+            "(it is usually different from your user id)."
         )
 
     raise ValueError(
         "Could not find a collection id. Paste a number, a link like "
         "https://deckstats.net/collections/12345, or Upload CSV from Deckstats instead."
+    )
+
+
+def looks_like_deckstats_user_id(maybe_id: str) -> bool:
+    """True if Deckstats has a public profile for this numeric id (not a collection)."""
+    try:
+        r = fetch(f"https://deckstats.net/users/{maybe_id}")
+        if r.status_code != 200:
+            return False
+        # Profile URLs rewrite to /users/123-Name when the user exists
+        return bool(re.search(rf"/users/{re.escape(maybe_id)}-", r.url or "", re.I))
+    except Exception:
+        return False
+
+
+def collection_not_found_message(collection_id: str) -> str:
+    if looks_like_deckstats_user_id(collection_id):
+        return (
+            f"{collection_id} is your Deckstats user id, not a collection id. "
+            "Live pull needs the numeric idcollections value. "
+            "Easiest: on Deckstats open Collection → Export CSV → Upload CSV here. "
+            "Or while on Collection, DevTools → Network → filter collection_get → "
+            "copy idcollections=… (it is usually not the same as your user id)."
+        )
+    return (
+        f"Deckstats has no public collection with id {collection_id}. "
+        "Use Collection → Export CSV → Upload CSV, or paste the real "
+        "idcollections number from Network → collection_get."
     )
 
 
@@ -410,24 +574,30 @@ def fetch_deckstats_collection(collection_id: str) -> dict:
                 "chunk_index": chunk,
             },
         )
-        if r.status_code == 401:
+        body = (r.text or "").strip()
+        if r.status_code == 401 or "only available to registered users" in body.lower():
             raise ValueError(
                 "That Deckstats collection requires login (it is probably private). "
                 "Make it public, or export CSV from Deckstats and upload it."
             )
         if r.status_code >= 400:
-            raise ValueError(f"Deckstats collection HTTP {r.status_code}: {r.text[:180]}")
+            if "could not be found" in body.lower() or "not found" in body.lower():
+                raise ValueError(collection_not_found_message(collection_id))
+            raise ValueError(f"Deckstats collection HTTP {r.status_code}: {body[:180]}")
         try:
             data = r.json()
         except Exception as e:
+            if "could not be found" in body.lower():
+                raise ValueError(collection_not_found_message(collection_id)) from e
             raise ValueError(f"Invalid Deckstats JSON: {e}") from e
         if not data.get("success"):
-            raise ValueError(
-                data.get("error") or data.get("message") or "collection_get failed"
-            )
+            err = str(data.get("error") or data.get("message") or "collection_get failed")
+            if "could not be found" in err.lower() or "not found" in err.lower():
+                raise ValueError(collection_not_found_message(collection_id))
+            raise ValueError(err)
         coll = data.get("collection")
         if not coll:
-            raise ValueError("Collection could not be found or is private.")
+            raise ValueError(collection_not_found_message(collection_id))
         if meta is None:
             meta = coll
         rows = coll.get("cards") or []
@@ -559,13 +729,16 @@ def collection_lookup_payload() -> dict:
     manabox = load_collection_raw()
     deckstats = load_deckstats_collection_raw()
     overrides = load_overrides()
-    cards = merge_card_maps(
-        (manabox or {}).get("cards") or {},
-        (deckstats or {}).get("cards") or {},
-    )
+    manabox_cards = (manabox or {}).get("cards") or {}
+    deckstats_cards = (deckstats or {}).get("cards") or {}
+    cards = merge_card_maps(manabox_cards, deckstats_cards)
     return {
         **collection_summary(),
         "cards": cards,
+        "cards_by_source": {
+            "manabox": manabox_cards,
+            "deckstats": deckstats_cards,
+        },
         "override_keys": [name_key(n) for n in overrides["owned"]],
     }
 
@@ -599,8 +772,17 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 qs = parse_qs(parsed.query)
                 raw = (qs.get("url") or qs.get("q") or [""])[0]
-                owner_id = parse_owner_from_input(raw)
-                self._json(200, {"ok": True, **load_profile(owner_id)})
+                parsed_in = parse_profile_input(raw)
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        **load_profile(
+                            parsed_in["owner_id"],
+                            preferred_urls=parsed_in.get("preferred_urls"),
+                        ),
+                    },
+                )
             except Exception as e:
                 traceback.print_exc()
                 self._json(400, {"ok": False, "error": str(e)})

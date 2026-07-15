@@ -35,6 +35,7 @@ Notes:
 - Free tier **sleeps after ~15 minutes** idle; first load can take ~30–60s.
 - Uploaded collection files live on the server disk and may reset on redeploy (no persistent disk on free).
 - Anyone with the URL can use the app and see whatever is stored in that instance’s `data/` folder.
+- **Deckstats “Load decks”** calls Deckstats from the Render server. Cloudflare sometimes blocks that; if it fails, paste decklists manually (or load decks on your PC). Combos still work either way.
 
 ## Deckstats import
 
