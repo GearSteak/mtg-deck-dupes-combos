@@ -106,13 +106,20 @@
       transform: none;
     }
 
-    button.primary {
+    button.primary,
+    a.primary {
       background: var(--accent);
       color: #06241e;
-      border-color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      text-decoration: none;
+      font-weight: 600;
+      display: inline-block;
     }
 
-    button.primary:hover {
+    button.primary:hover,
+    a.primary:hover {
       background: #5fdcc0;
       border-color: #5fdcc0;
     }
@@ -303,6 +310,33 @@
     .combo-grid {
       display: grid;
       gap: 0.75rem;
+    }
+
+    .power-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .power-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.9rem 1rem;
+    }
+
+    .power-card h4 {
+      margin: 0 0 0.25rem;
+      font-size: 1rem;
+    }
+
+    .power-card .meta {
+      color: var(--muted);
+      font-size: 0.82rem;
     }
 
     .combo {
@@ -748,9 +782,9 @@
     </header>
 
     <div id="corsNotice" class="notice no-print">
-      Open this page via a local server (not <code>file://</code>) so combo lookup works.
-      Run <code>start.bat</code> or <code>python -m http.server 8080</code>, then visit
-      <a href="http://localhost:8080">http://localhost:8080</a>.
+      Open this page via <code>server.py</code> / <code>start.bat</code> (not <code>file://</code>)
+      so combo lookup and Deckstats import work.
+      Then visit <a href="http://localhost:8080">http://localhost:8080</a>.
     </div>
 
     <div class="import-box no-print">
@@ -820,6 +854,7 @@
         <label><input type="checkbox" id="printShared" checked /> Shared cards</label>
         <label><input type="checkbox" id="printCombos" checked /> Combos</label>
         <label><input type="checkbox" id="printMissing" checked /> Missing</label>
+        <label><input type="checkbox" id="printPower" checked /> Power level links</label>
       </div>
 
       <div class="export-panel no-print" id="exportPanel">
@@ -834,6 +869,7 @@
           <button type="button" class="tab active" data-main-tab="shared" role="tab">Shared cards</button>
           <button type="button" class="tab" data-main-tab="combos" role="tab">Combos</button>
           <button type="button" class="tab" data-main-tab="owned" role="tab">Owned / missing</button>
+          <button type="button" class="tab" data-main-tab="power" role="tab">Power level</button>
         </div>
 
         <div class="tab-panel active" data-main-panel="shared" id="panelShared">
@@ -854,18 +890,30 @@
           <div class="subtabs no-print" id="ownedSubtabs"></div>
           <div id="ownedResults"></div>
         </div>
+
+        <div class="tab-panel" data-main-panel="power" id="panelPower">
+          <p class="sub">
+            Open each list on
+            <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>
+            for power / bracket-style scoring (their site runs the full analysis).
+          </p>
+          <div id="powerResults"></div>
+        </div>
       </div>
     </div>
 
     <div class="foot no-print">
       Combo data from
       <a href="https://commanderspellbook.com/" target="_blank" rel="noopener">Commander Spellbook</a>.
+      Power checks via
+      <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>.
       Accepts Moxfield / Arena / MTGO-style lists (<code>1 Card Name</code>, <code>1x Card</code>, section headers).
     </div>
   </div>
 
   <script>
-    const API = "https://backend.commanderspellbook.com/find-my-combos";
+    // Proxied via server.py — Spellbook CORS only allows localhost, not Render.
+    const API = "/api/combos";
     const BASIC_LANDS = new Set([
       "plains", "island", "swamp", "mountain", "forest",
       "snow-covered plains", "snow-covered island", "snow-covered swamp",
@@ -912,6 +960,7 @@
       el.innerHTML = `
         <div class="deck-top">
           <input type="text" class="deck-name" value="${escapeAttr(name || `Deck ${id}`)}" placeholder="Deck name" />
+          <button type="button" class="ghost power-deck" title="Open on EDH Power Level">Power level</button>
           <button type="button" class="ghost remove-deck" title="Remove deck">Remove</button>
         </div>
         <textarea class="deck-text" placeholder="Paste decklist here&#10;1 Sol Ring&#10;1 Arcane Signet&#10;..."></textarea>
@@ -929,6 +978,14 @@
         meta.textContent = `${n} cards${cmd}`;
       };
       ta.addEventListener("input", refreshMeta);
+      el.querySelector(".power-deck").addEventListener("click", () => {
+        const list = ta.value.trim();
+        if (!list) {
+          setStatus("Paste a decklist before checking power level.", "error");
+          return;
+        }
+        openEdhPowerLevel(list);
+      });
       el.querySelector(".remove-deck").addEventListener("click", () => {
         if (decksEl.children.length <= 1) {
           ta.value = "";
@@ -941,6 +998,55 @@
       decksEl.appendChild(el);
       refreshMeta();
       return el;
+    }
+
+    /** Official encode from https://edhpowerlevel.com/button/ */
+    function edhPowerLevelEncode(deckText) {
+      const arr = String(deckText || "").split(/[\r\n~]/);
+      arr.forEach((c, i) => {
+        c = c.split("(")[0];
+        c = c.replace(/ *\[[^)]*\] */g, " ");
+        c = c.replace(/ *<[^)]*> */g, " ");
+        c = c.trim();
+        arr[i] = c;
+      });
+      const nd = arr.join("~");
+      return encodeURIComponent(nd).replace(/%20/g, "+") + "~Z~";
+    }
+
+    function edhPowerLevelUrl(deckText) {
+      return `https://edhpowerlevel.com/?d=${edhPowerLevelEncode(deckText)}`;
+    }
+
+    function openEdhPowerLevel(deckText) {
+      const url = edhPowerLevelUrl(deckText);
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    function renderPowerLevels(decks) {
+      const root = document.getElementById("powerResults");
+      if (!root) return;
+      const nonempty = (decks || []).filter((d) => (d.text || "").trim() && d.names.size > 0);
+      setMainTabBadge("power", nonempty.length || null);
+      if (!nonempty.length) {
+        root.innerHTML = `<p class="empty">Paste decks and Analyze to get EDH Power Level links.</p>`;
+        return;
+      }
+      root.innerHTML = `<div class="power-grid">${nonempty.map((d) => {
+        const n = [...d.names.values()].reduce((sum, info) => sum + info.quantity, 0);
+        const cmd = d.parsed.commanders.map((c) => c.card).join(", ") || "no commander section";
+        const href = edhPowerLevelUrl(d.text);
+        return `
+          <div class="power-card">
+            <div>
+              <h4>${escapeHtml(d.name)}</h4>
+              <div class="meta">${n} cards · ${escapeHtml(cmd)}</div>
+            </div>
+            <a class="primary" href="${escapeAttr(href)}" target="_blank" rel="noopener">
+              Check on EDH Power Level
+            </a>
+          </div>`;
+      }).join("")}</div>`;
     }
 
     function escapeAttr(s) {
@@ -1065,11 +1171,16 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(`Spellbook API ${res.status}: ${t.slice(0, 200)}`);
+      const text = await res.text().catch(() => "");
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error(`Spellbook proxy returned non-JSON (${res.status}).`);
       }
-      const data = await res.json();
+      if (!res.ok || data?.ok === false) {
+        throw new Error(data?.error || `Spellbook API ${res.status}: ${text.slice(0, 200)}`);
+      }
       const results = data.results || data;
       return {
         included: results.included || [],
@@ -1593,11 +1704,12 @@
         shared: document.getElementById("printShared").checked,
         combos: document.getElementById("printCombos").checked,
         missing: document.getElementById("printMissing").checked,
+        power: document.getElementById("printPower")?.checked ?? true,
       };
     }
 
     function buildReportText(shared, decks, deckResults, showAlmost, ownership, sections) {
-      const include = sections || { shared: true, combos: true, missing: true };
+      const include = sections || { shared: true, combos: true, missing: true, power: true };
       const lines = [];
       const date = new Date().toLocaleString();
       lines.push("DECK DUPES & COMBOS");
@@ -1607,6 +1719,7 @@
       if (include.missing) includedLabels.push("missing");
       if (include.shared) includedLabels.push("shared");
       if (include.combos) includedLabels.push("combos");
+      if (include.power) includedLabels.push("power links");
       lines.push(`Sections: ${includedLabels.length ? includedLabels.join(", ") : "(none selected)"}`);
       lines.push("");
 
@@ -1703,6 +1816,18 @@
         lines.push("Combo data: Commander Spellbook (commanderspellbook.com)");
       }
 
+      if (include.power) {
+        lines.push("======== EDH POWER LEVEL ========");
+        lines.push("Open each link on edhpowerlevel.com for full scoring:");
+        for (const deck of decks) {
+          if (!(deck.text || "").trim()) continue;
+          lines.push("");
+          lines.push(`${deck.name}:`);
+          lines.push(edhPowerLevelUrl(deck.text));
+        }
+        lines.push("");
+      }
+
       return lines.join("\n").trimEnd() + "\n";
     }
 
@@ -1746,8 +1871,8 @@
       }
       const text = refreshExportText();
       const sections = getPrintSections();
-      if (!sections.shared && !sections.combos && !sections.missing) {
-        setStatus("Select at least one section to copy (Shared, Combos, or Missing).", "error");
+      if (!sections.shared && !sections.combos && !sections.missing && !sections.power) {
+        setStatus("Select at least one section to copy.", "error");
         return;
       }
       try {
@@ -1768,8 +1893,8 @@
         return;
       }
       const sections = getPrintSections();
-      if (!sections.shared && !sections.combos && !sections.missing) {
-        setStatus("Select at least one section to print (Shared, Combos, or Missing).", "error");
+      if (!sections.shared && !sections.combos && !sections.missing && !sections.power) {
+        setStatus("Select at least one section to print.", "error");
         return;
       }
       refreshExportText();
@@ -1814,6 +1939,7 @@
       }
 
       renderCombos(deckResults, showAlmost);
+      renderPowerLevels(decks);
       lastAnalyze = { shared, decks, deckResults, showAlmost };
       refreshExportText();
       const comboCount = deckResults.reduce((n, r) => n + (r.combos?.included?.length || 0), 0);
@@ -1853,7 +1979,7 @@
     document.getElementById("analyze").addEventListener("click", analyze);
     copyBtn.addEventListener("click", copyResults);
     printBtn.addEventListener("click", printResults);
-    ["printShared", "printCombos", "printMissing"].forEach((id) => {
+    ["printShared", "printCombos", "printMissing", "printPower"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener("change", () => {

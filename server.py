@@ -10,6 +10,8 @@ import os
 import re
 import sys
 import traceback
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,6 +24,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", str(ROOT / "data")))
 COLLECTION_PATH = DATA_DIR / "collection.json"  # ManaBox / CSV upload
 DECKSTATS_COLLECTION_PATH = DATA_DIR / "deckstats_collection.json"
 OVERRIDES_PATH = DATA_DIR / "owned_overrides.json"
+SPELLBOOK_FIND_COMBOS = "https://backend.commanderspellbook.com/find-my-combos"
 
 def _pip_install(package: str) -> None:
     import subprocess
@@ -725,6 +728,29 @@ def collection_summary() -> dict:
     }
 
 
+def find_combos(payload: dict) -> dict:
+    """Proxy Commander Spellbook find-my-combos (browser CORS only allows localhost)."""
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        SPELLBOOK_FIND_COMBOS,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "mtg-deck-dupes-combos/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")[:300]
+        raise ValueError(f"Spellbook HTTP {e.code}: {detail}") from e
+    except urllib.error.URLError as e:
+        raise ValueError(f"Spellbook unreachable: {e.reason}") from e
+
+
 def collection_lookup_payload() -> dict:
     manabox = load_collection_raw()
     deckstats = load_deckstats_collection_raw()
@@ -818,6 +844,21 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/combos":
+            try:
+                body = self._read_json_body()
+                if not isinstance(body, dict):
+                    raise ValueError("Expected JSON object with commanders/main.")
+                data = find_combos(body)
+                # Pass through Spellbook payload so the frontend can keep parsing it
+                if isinstance(data, dict):
+                    data = {**data, "ok": True}
+                self._json(200, data if isinstance(data, dict) else {"ok": True, "results": data})
+            except Exception as e:
+                traceback.print_exc()
+                self._json(400, {"ok": False, "error": str(e)})
+            return
+
         if parsed.path == "/api/collection":
             try:
                 body = self._read_json_body()
