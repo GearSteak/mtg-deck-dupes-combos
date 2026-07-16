@@ -1,0 +1,10 @@
+{
+  "name": "Deck Dupes & Combos",
+  "short_name": "MTG Decks",
+  "description": "Track shared staples and which deck has each physical copy.",
+  "start_url": "/#assign",
+  "display": "standalone",
+  "background_color": "#0e1218",
+  "theme_color": "#3ecfaf",
+  "icons": []
+}

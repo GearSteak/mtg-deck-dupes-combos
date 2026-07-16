@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#3ecfaf" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="MTG Decks" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <title>Deck Dupes & Combos — MTG</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -212,7 +216,7 @@
 
     .status {
       min-height: 1.4rem;
-      margin-bottom: 1rem;
+      margin: 0.75rem 0 1rem;
       color: var(--muted);
       font-size: 0.9rem;
     }
@@ -220,8 +224,26 @@
     .status.error { color: var(--danger); }
     .status.ok { color: var(--accent); }
 
-    .results { display: none; }
-    .results.show { display: block; animation: rise 0.4s ease-out both; }
+    .app-tabs {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0.35rem;
+      margin: 0 0 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.55rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+
+    .results-chrome {
+      display: none;
+      margin-bottom: 1rem;
+    }
+    .results-chrome.show {
+      display: block;
+      animation: rise 0.35s ease-out both;
+    }
 
     .section {
       margin-bottom: 2rem;
@@ -516,6 +538,75 @@
 
     .owned-yes { color: var(--accent); font-weight: 600; }
     .owned-no { color: var(--warn); font-weight: 600; }
+    tr.missing-multi td {
+      background: color-mix(in srgb, var(--warn) 14%, transparent);
+    }
+    tr.missing-multi:hover td {
+      background: color-mix(in srgb, var(--warn) 22%, transparent) !important;
+    }
+    tr.assign-conflict td {
+      background: color-mix(in srgb, var(--warn) 18%, transparent);
+    }
+    tr.assign-conflict:hover td {
+      background: color-mix(in srgb, var(--warn) 26%, transparent) !important;
+    }
+    .assign-deck {
+      font-family: var(--font);
+      font-size: 0.85rem;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+      max-width: 12rem;
+    }
+    .assign-deck:focus {
+      outline: 2px solid var(--accent-dim);
+      border-color: var(--accent);
+    }
+    .mobile-quick {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.65rem 0.9rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      z-index: 50;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+    }
+    .mobile-quick button {
+      width: 100%;
+      padding: 0.85rem;
+      font-size: 1rem;
+    }
+    @media (max-width: 720px) {
+      .mobile-quick { display: block; }
+      .wrap { padding-bottom: 5.5rem; }
+      .assign-deck {
+        min-height: 44px;
+        font-size: 1rem;
+        max-width: none;
+        width: 100%;
+      }
+      #sharedTable td { padding: 0.65rem 0.5rem; vertical-align: top; }
+      .toolbar button, .app-tabs .tab { min-height: 44px; }
+      .app-tabs .tab { white-space: nowrap; flex: 0 0 auto; }
+    }
+    .missing-multi-badge {
+      display: inline-block;
+      margin-left: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #2a1a08;
+      background: var(--warn);
+      border-radius: 4px;
+      padding: 0.12rem 0.4rem;
+      vertical-align: middle;
+    }
     .sync-notice {
       margin: 0 0 1rem;
       padding: 0.75rem 0.9rem;
@@ -550,7 +641,8 @@
       border-radius: var(--radius);
     }
 
-    .export-bar.show { display: flex; }
+    .export-bar.show,
+    .results-chrome.show .export-bar { display: flex; }
 
     .export-bar .hint {
       color: var(--muted);
@@ -572,7 +664,8 @@
       font-size: 0.88rem;
     }
 
-    .print-opts.show { display: flex; }
+    .print-opts.show,
+    .results-chrome.show .print-opts { display: flex; }
 
     .print-opts .hint {
       color: var(--muted);
@@ -631,8 +724,10 @@
       }
       .wrap { max-width: none; padding: 0; }
       .no-print { display: none !important; }
-      .results { display: block !important; }
+      .results-chrome { display: block !important; }
       .export-bar, .export-panel, .print-opts { display: none !important; }
+      .app-tabs { display: none !important; }
+      .tab-panel { display: none !important; }
       .section h2, .deck-block > h3, header h1 {
         color: #111 !important;
         font-family: Georgia, serif;
@@ -662,21 +757,12 @@
         line-height: 1.35;
         color: #111;
       }
-      .screen-results { display: none !important; }
-      .tabs, .subtabs { display: none !important; }
+      .subtabs { display: none !important; }
     }
 
     .print-only { display: none; }
 
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin: 0 0 1rem;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.55rem;
-    }
-
+    .app-tabs .tab,
     .tab {
       font-family: var(--font);
       font-size: 0.88rem;
@@ -689,11 +775,13 @@
       cursor: pointer;
     }
 
+    .app-tabs .tab:hover,
     .tab:hover {
       color: var(--text);
       background: rgba(255,255,255,0.04);
     }
 
+    .app-tabs .tab.active,
     .tab.active {
       color: var(--accent);
       border-color: var(--border);
@@ -701,6 +789,7 @@
       background: var(--panel);
     }
 
+    .app-tabs .tab .count-badge,
     .tab .count-badge {
       display: inline-block;
       min-width: 1.2rem;
@@ -714,9 +803,48 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .app-tabs .tab.active .count-badge,
     .tab.active .count-badge {
       color: var(--accent);
       border-color: var(--accent-dim);
+    }
+
+    .collection-search-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .collection-search-row input[type="search"] {
+      flex: 1;
+      min-width: 200px;
+      font-family: var(--font);
+      font-size: 1rem;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 0.55rem 0.75rem;
+    }
+
+    .collection-search-row input:focus {
+      outline: 2px solid var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    .power-section {
+      margin-top: 2rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .power-section h3 {
+      font-family: var(--display);
+      font-weight: 400;
+      font-size: 1.45rem;
+      margin: 0 0 0.35rem;
     }
 
     .subtabs {
@@ -775,7 +903,7 @@
   <div class="wrap">
     <header>
       <h1>Deck Dupes <em>&amp;</em> Combos</h1>
-      <p class="no-print">Paste multiple Magic decklists to find shared cards and Commander Spellbook combos in each list.</p>
+      <p class="no-print">Import decks and collection CSVs, track which deck holds each shared staple, find combos, and search what you own.</p>
       <p class="notice show no-print" style="margin-top:0.85rem;margin-bottom:0">
         Disclaimer: on free hosting the app may sleep when idle — the first load can take ~30–60 seconds to warm up. Deckstats lookups and combo searches can also take a bit.
       </p>
@@ -787,118 +915,148 @@
       Then visit <a href="http://localhost:8080">http://localhost:8080</a>.
     </div>
 
-    <div class="import-box no-print">
-      <h2>Ownership sources</h2>
-      <p class="sub">
-        Easiest for Deckstats: Collection → export <strong>CSV</strong> → <strong>Upload CSV</strong> (saved under <code>data/</code>).
-        Live pull needs an <code>idcollections</code> number — not your profile/user id
-        (e.g. <code>/users/177410-…</code> or <code>/collection/177410</code> will not work).
-        While on Collection: DevTools → Network → <code>collection_get</code> → copy <code>idcollections</code>.
-      </p>
-      <div class="import-row">
-        <input type="file" id="collectionFile" class="file-input" accept=".csv,text/csv" />
-        <button type="button" id="pickCollection">Upload CSV (ManaBox / Deckstats)</button>
-        <button type="button" class="ghost" id="refreshCollection">Refresh</button>
-        <button type="button" class="ghost" id="clearCollection">Clear saved</button>
-      </div>
-      <div class="import-row" style="margin-top:0.55rem">
-        <input type="text" id="deckstatsCollectionUrl" placeholder="…/collections/12345  or  idcollections number" />
-        <button type="button" id="loadDeckstatsCollection">Pull public collection</button>
-      </div>
-      <p class="deck-meta" id="collectionStatus">No collection loaded yet.</p>
+    <div class="app-tabs no-print" id="mainTabs" role="tablist">
+      <button type="button" class="tab active" data-main-tab="imports" role="tab">Imports &amp; Decks</button>
+      <button type="button" class="tab" data-main-tab="shared" role="tab">Shared &amp; Locations</button>
+      <button type="button" class="tab" data-main-tab="combos" role="tab">Combos</button>
+      <button type="button" class="tab" data-main-tab="owned" role="tab">Owned / Missing</button>
+      <button type="button" class="tab" data-main-tab="collection" role="tab">Collection</button>
     </div>
 
-    <div class="import-box no-print">
-      <h2>Import from Deckstats</h2>
-      <p class="sub">Paste your public profile URL (or user id). Then pick which decks to load.</p>
-      <div class="import-row">
-        <input type="text" id="deckstatsUrl" placeholder="https://deckstats.net/users/123456-YourName" />
-        <button type="button" id="loadDeckstats">Load decks</button>
-      </div>
-      <p class="deck-meta" id="deckstatsImportStatus"></p>
-      <div class="deck-pick" id="deckPick"></div>
-      <div class="import-actions" id="importActions">
-        <button type="button" class="ghost" id="selectAllDecks">Select all</button>
-        <button type="button" class="ghost" id="selectNoneDecks">Select none</button>
-        <span class="spacer"></span>
-        <button type="button" class="primary" id="importDecks">Import selected</button>
-      </div>
-    </div>
-
-    <div class="toolbar no-print">
-      <button type="button" class="ghost" id="addDeck">+ Add deck</button>
-      <button type="button" class="ghost" id="clearDecks">Clear all decks</button>
-      <span class="spacer"></span>
-      <button type="button" class="primary" id="analyze">Analyze decks</button>
-    </div>
-
-    <div class="opts no-print">
-      <label><input type="checkbox" id="excludeBasics" checked /> Ignore basic lands in shared cards</label>
-      <label><input type="checkbox" id="excludeBasicsOwned" checked /> Ignore basic lands in missing/owned</label>
-      <label><input type="checkbox" id="showAlmost" /> Include “almost” combos (missing 1+ cards)</label>
-    </div>
-
-    <div class="decks no-print" id="decks"></div>
     <div class="status no-print" id="status"></div>
 
-    <div class="results" id="results">
-      <div class="export-bar no-print" id="exportBar">
+    <div class="results-chrome no-print" id="results">
+      <div class="export-bar" id="exportBar">
         <span class="hint">Export</span>
         <button type="button" class="primary" id="copyResults">Copy results</button>
         <button type="button" id="printResults">Print</button>
         <button type="button" class="ghost" id="toggleText">Show plain text</button>
       </div>
 
-      <div class="print-opts no-print" id="printOpts">
+      <div class="print-opts" id="printOpts">
         <span class="hint">Include in print / copy</span>
         <label><input type="checkbox" id="printShared" checked /> Shared cards</label>
         <label><input type="checkbox" id="printCombos" checked /> Combos</label>
         <label><input type="checkbox" id="printMissing" checked /> Missing</label>
+        <label><input type="checkbox" id="printAssignments" checked /> Staple assignments</label>
         <label><input type="checkbox" id="printPower" checked /> Power level links</label>
       </div>
 
-      <div class="export-panel no-print" id="exportPanel">
+      <div class="export-panel" id="exportPanel">
         <p class="sub">Select all and paste into a doc, or use Copy results.</p>
         <textarea id="exportText" readonly spellcheck="false"></textarea>
       </div>
+    </div>
 
-      <pre class="print-only" id="printText"></pre>
+    <pre class="print-only" id="printText"></pre>
 
-      <div class="screen-results">
-        <div class="tabs no-print" id="mainTabs" role="tablist">
-          <button type="button" class="tab active" data-main-tab="shared" role="tab">Shared cards</button>
-          <button type="button" class="tab" data-main-tab="combos" role="tab">Combos</button>
-          <button type="button" class="tab" data-main-tab="owned" role="tab">Owned / missing</button>
-          <button type="button" class="tab" data-main-tab="power" role="tab">Power level</button>
+    <div class="tab-panel active" data-main-panel="imports" id="panelImports">
+      <div class="import-box no-print">
+        <h2>Ownership sources</h2>
+        <p class="sub">
+          Easiest for Deckstats: Collection → export <strong>CSV</strong> → <strong>Upload CSV</strong> (saved under <code>data/</code>).
+          Live pull needs an <code>idcollections</code> number — not your profile/user id
+          (e.g. <code>/users/177410-…</code> or <code>/collection/177410</code> will not work).
+          While on Collection: DevTools → Network → <code>collection_get</code> → copy <code>idcollections</code>.
+        </p>
+        <div class="import-row">
+          <input type="file" id="collectionFile" class="file-input" accept=".csv,text/csv" />
+          <button type="button" id="pickCollection">Upload CSV (ManaBox / Deckstats)</button>
+          <button type="button" class="ghost" id="refreshCollection">Refresh</button>
+          <button type="button" class="ghost" id="clearCollection">Clear saved</button>
         </div>
-
-        <div class="tab-panel active" data-main-panel="shared" id="panelShared">
-          <p class="sub">Cards that appear in more than one deck.</p>
-          <div class="pill-row" id="sharedFilters"></div>
-          <div id="sharedTable"></div>
+        <div class="import-row" style="margin-top:0.55rem">
+          <input type="text" id="deckstatsCollectionUrl" placeholder="…/collections/12345  or  idcollections number" />
+          <button type="button" id="loadDeckstatsCollection">Pull public collection</button>
         </div>
+        <p class="deck-meta" id="collectionStatus">No collection loaded yet.</p>
+      </div>
 
-        <div class="tab-panel" data-main-panel="combos" id="panelCombos">
-          <p class="sub">Known combos fully present in each list, via Commander Spellbook.</p>
-          <div class="subtabs no-print" id="comboSubtabs"></div>
-          <div id="comboResults"></div>
+      <div class="import-box no-print">
+        <h2>Import from Deckstats</h2>
+        <p class="sub">Paste your public profile URL (or user id). Then pick which decks to load.</p>
+        <div class="import-row">
+          <input type="text" id="deckstatsUrl" placeholder="https://deckstats.net/users/123456-YourName" />
+          <button type="button" id="loadDeckstats">Load decks</button>
         </div>
+        <p class="deck-meta" id="deckstatsImportStatus"></p>
+        <div class="deck-pick" id="deckPick"></div>
+        <div class="import-actions" id="importActions">
+          <button type="button" class="ghost" id="selectAllDecks">Select all</button>
+          <button type="button" class="ghost" id="selectNoneDecks">Select none</button>
+          <span class="spacer"></span>
+          <button type="button" class="primary" id="importDecks">Import selected</button>
+        </div>
+      </div>
 
-        <div class="tab-panel" data-main-panel="owned" id="panelOwned">
-          <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” overrides).</p>
-          <div id="ownedSyncNotice"></div>
-          <div class="subtabs no-print" id="ownedSubtabs"></div>
-          <div id="ownedResults"></div>
-        </div>
+      <div class="toolbar no-print">
+        <button type="button" class="ghost" id="addDeck">+ Add deck</button>
+        <button type="button" class="ghost" id="clearDecks">Clear all decks</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="quickAssignToolbar">Quick assign</button>
+        <button type="button" class="primary" id="analyze">Analyze decks</button>
+      </div>
 
-        <div class="tab-panel" data-main-panel="power" id="panelPower">
-          <p class="sub">
-            Open each list on
-            <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>
-            for power / bracket-style scoring (their site runs the full analysis).
-          </p>
-          <div id="powerResults"></div>
+      <div class="opts no-print">
+        <label><input type="checkbox" id="excludeBasics" checked /> Ignore basic lands in shared cards</label>
+        <label><input type="checkbox" id="excludeBasicsOwned" checked /> Ignore basic lands in missing/owned</label>
+        <label><input type="checkbox" id="showAlmost" /> Include “almost” combos (missing 1+ cards)</label>
+      </div>
+
+      <div class="decks no-print" id="decks"></div>
+    </div>
+
+    <div class="tab-panel" data-main-panel="shared" id="panelShared">
+      <p class="sub">
+        Shared staples use <strong>one physical copy</strong> — pick which deck it’s in now.
+        Change the dropdown when you move it; you don’t need to buy a second.
+      </p>
+      <div id="sharedAssignNotice"></div>
+      <div class="pill-row" id="sharedFilters"></div>
+      <div id="sharedTable">
+        <p class="empty">Import decks on the Imports tab, then Analyze or Quick assign to see shared staples and copy locations.</p>
+      </div>
+
+      <div class="power-section">
+        <h3>Power level</h3>
+        <p class="sub">
+          Open each list on
+          <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>
+          for power / bracket-style scoring (their site runs the full analysis).
+        </p>
+        <div id="powerResults">
+          <p class="empty">Power level links appear after you Analyze or Quick assign.</p>
         </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-main-panel="combos" id="panelCombos">
+      <p class="sub">Known combos fully present in each list, via Commander Spellbook.</p>
+      <div class="subtabs no-print" id="comboSubtabs"></div>
+      <div id="comboResults">
+        <p class="empty">Run Analyze decks on the Imports tab to look up combos (this step can take a bit).</p>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-main-panel="owned" id="panelOwned">
+      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” overrides).</p>
+      <p class="deck-meta" id="ownedBrowserNote"></p>
+      <div id="ownedSyncNotice"></div>
+      <div class="subtabs no-print" id="ownedSubtabs"></div>
+      <div id="ownedResults">
+        <p class="empty">Upload a collection and Analyze (or Quick assign) to compare owned vs missing cards.</p>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-main-panel="collection" id="panelCollection">
+      <p class="sub">Search cards in your imported ManaBox / Deckstats collection (merged quantities + mark-owned overrides).</p>
+      <div class="collection-search-row no-print">
+        <input type="search" id="collectionSearch" placeholder="Search card name…" autocomplete="off" />
+        <button type="button" class="ghost" id="clearCollectionSearch">Clear</button>
+      </div>
+      <p class="deck-meta" id="collectionSearchMeta">No collection loaded yet.</p>
+      <div id="collectionSearchResults">
+        <p class="empty">Upload a CSV or pull Deckstats on the Imports tab, then search here.</p>
       </div>
     </div>
 
@@ -909,6 +1067,10 @@
       <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>.
       Accepts Moxfield / Arena / MTGO-style lists (<code>1 Card Name</code>, <code>1x Card</code>, section headers).
     </div>
+  </div>
+
+  <div class="mobile-quick no-print" id="mobileQuickBar">
+    <button type="button" class="primary" id="quickAssign">Update copy locations</button>
   </div>
 
   <script>
@@ -924,12 +1086,22 @@
     const SECTION_RE = /^(?:\/\/\s*)?(commander(?:s)?|deck|main(?:board)?|sideboard|maybeboard|companions?|considerations?)\s*:?\s*$/i;
     const CARD_LINE_RE = /^(?:(\d+)\s*[xX]?\s+)?(.+?)(?:\s+\([A-Za-z0-9]+\)(?:\s+\d+)?)?(?:\s+\*[FEfe]\*)?\s*$/;
 
+    const LS_DECKS = "mtgddc-v1-decks";
+    const LS_COLLECTION = "mtgddc-v1-collection";
+    const LS_ASSIGNMENTS = "mtgddc-v1-assignments";
+    const LS_SYNCED = "mtgddc-v1-synced";
+
     let deckId = 0;
     let lastReportText = "";
     let lastAnalyze = null; // { shared, decks, deckResults, showAlmost }
     let deckstatsOwnerId = null;
     let deckstatsDecks = [];
     let collectionState = null; // full lookup payload
+    let collectionInBrowser = false;
+    let cardAssignments = {}; // cardKey -> deckId string
+    let lastSharedForAssign = [];
+    let saveLocalTimer = null;
+    let pushSessionTimer = null;
     let lastOwnership = null; // { decks: [...], missingAll: [...] }
     let lastDeckResults = null;
     let lastShowAlmost = false;
@@ -951,9 +1123,247 @@
     const collectionStatus = document.getElementById("collectionStatus");
     const collectionFile = document.getElementById("collectionFile");
 
-    function addDeck(name = "", text = "") {
-      deckId += 1;
-      const id = deckId;
+    function readLocalJson(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function writeLocalJson(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch {
+        setStatus("Browser storage full — try Clear saved or a smaller CSV.", "error");
+        return false;
+      }
+    }
+
+    function scheduleSaveLocal() {
+      clearTimeout(saveLocalTimer);
+      saveLocalTimer = setTimeout(saveLocalNow, 400);
+    }
+
+    function saveDecksLocal() {
+      const decks = [...decksEl.querySelectorAll(".deck")].map((el) => ({
+        id: parseInt(el.dataset.id, 10),
+        name: el.querySelector(".deck-name").value,
+        text: el.querySelector(".deck-text").value,
+      }));
+      writeLocalJson(LS_DECKS, decks);
+    }
+
+    function saveCollectionLocal() {
+      if (collectionState) {
+        collectionInBrowser = writeLocalJson(LS_COLLECTION, collectionState);
+      }
+    }
+
+    function saveAssignmentsLocal() {
+      writeLocalJson(LS_ASSIGNMENTS, cardAssignments);
+    }
+
+    function saveLocalNow() {
+      saveDecksLocal();
+      saveCollectionLocal();
+      saveAssignmentsLocal();
+      schedulePushSession();
+    }
+
+    function gatherDecksForStorage() {
+      return [...decksEl.querySelectorAll(".deck")].map((el) => ({
+        id: parseInt(el.dataset.id, 10),
+        name: el.querySelector(".deck-name").value,
+        text: el.querySelector(".deck-text").value,
+      }));
+    }
+
+    function schedulePushSession() {
+      if (location.protocol === "file:") return;
+      clearTimeout(pushSessionTimer);
+      pushSessionTimer = setTimeout(pushSessionToServer, 400);
+    }
+
+    async function pushSessionToServer() {
+      if (location.protocol === "file:") return;
+      try {
+        const decks = gatherDecksForStorage();
+        const [aRes, dRes] = await Promise.all([
+          fetch("/api/assignments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ assignments: cardAssignments }),
+          }),
+          fetch("/api/decks/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ decks }),
+          }),
+        ]);
+        const a = await aRes.json();
+        const d = await dRes.json();
+        const ts = d.updated_at || a.updated_at || new Date().toISOString();
+        writeLocalJson(LS_SYNCED, ts);
+      } catch {
+        // offline or server asleep — local copy still works
+      }
+    }
+
+    async function pullSessionFromServer() {
+      if (location.protocol === "file:") return false;
+      try {
+        const [aRes, dRes] = await Promise.all([
+          fetch("/api/assignments"),
+          fetch("/api/decks/session"),
+        ]);
+        const a = await aRes.json();
+        const d = await dRes.json();
+        let changed = false;
+
+        if (a.ok && a.assignments && typeof a.assignments === "object") {
+          const merged = { ...cardAssignments };
+          for (const [k, v] of Object.entries(a.assignments)) {
+            merged[k] = String(v);
+          }
+          if (JSON.stringify(merged) !== JSON.stringify(cardAssignments)) {
+            cardAssignments = merged;
+            saveAssignmentsLocal();
+            changed = true;
+          }
+        }
+
+        if (d.ok && Array.isArray(d.decks) && d.decks.length) {
+          const hadLocal = !!readLocalJson(LS_DECKS)?.length;
+          const localSynced = readLocalJson(LS_SYNCED);
+          const useServer = !hadLocal || (d.updated_at && localSynced && d.updated_at > localSynced);
+          if (useServer) {
+            decksEl.innerHTML = "";
+            deckId = 0;
+            for (const deck of d.decks) {
+              const id = parseInt(deck.id, 10) || 0;
+              deckId = Math.max(deckId, id);
+              addDeck(deck.name || "", deck.text || "", id);
+            }
+            saveDecksLocal();
+            changed = true;
+          }
+        }
+        return changed;
+      } catch {
+        return false;
+      }
+    }
+
+    function clearLocalKeys(...keys) {
+      for (const key of keys) localStorage.removeItem(key);
+    }
+
+    function purgeAssignmentsForDeckId(removedDeckId) {
+      let changed = false;
+      for (const [k, v] of Object.entries(cardAssignments)) {
+        if (String(v) === String(removedDeckId)) {
+          delete cardAssignments[k];
+          changed = true;
+        }
+      }
+      if (changed) saveAssignmentsLocal();
+    }
+
+    function getCardAssignment(key) {
+      const v = cardAssignments[key];
+      return v != null && v !== "" ? String(v) : "";
+    }
+
+    function setCardAssignment(key, deckId) {
+      if (!deckId) delete cardAssignments[key];
+      else cardAssignments[key] = String(deckId);
+      saveAssignmentsLocal();
+      schedulePushSession();
+    }
+
+    function deckNameById(deckId, decks) {
+      const hit = (decks || []).find((d) => String(d.id) === String(deckId));
+      if (hit) return hit.name;
+      const el = decksEl.querySelector(`.deck[data-id="${deckId}"]`);
+      return el?.querySelector(".deck-name")?.value.trim() || `Deck ${deckId}`;
+    }
+
+    function assignmentNeedsAction(row) {
+      const owned = ownedQuantity(row.name);
+      const deckCount = (row.decks || []).length;
+      if (deckCount < 2 || owned <= 0) return false;
+      const k = cardKey(row.name);
+      const assignId = getCardAssignment(k);
+      if (assignId && !row.decks.some((d) => String(d.id) === String(assignId))) return true;
+      // One physical copy shared across lists — pick a home deck (not “buy another”).
+      if (!assignId && owned === 1) return true;
+      if (!assignId && owned > 0 && owned < deckCount) return true;
+      return false;
+    }
+
+    function assignmentOwnedLabel(owned) {
+      if (owned <= 0) return "";
+      if (owned === 1) return `<span class="tag">1 copy</span>`;
+      return `<span class="tag">own ${owned}</span>`;
+    }
+
+    function countAssignmentConflicts(shared) {
+      return (shared || []).filter((row) => assignmentNeedsAction(row)).length;
+    }
+
+    function applyCollectionState(data) {
+      collectionState = data;
+      collectionInBrowser = false;
+      updateCollectionStatus();
+      saveCollectionLocal();
+      renderCollectionSearch();
+    }
+
+    function restoreAssignmentsFromLocal() {
+      cardAssignments = readLocalJson(LS_ASSIGNMENTS) || {};
+    }
+
+    function restoreDecksFromLocal() {
+      const saved = readLocalJson(LS_DECKS);
+      decksEl.innerHTML = "";
+      deckId = 0;
+      if (saved?.length) {
+        for (const d of saved) {
+          const id = parseInt(d.id, 10) || 0;
+          deckId = Math.max(deckId, id);
+          addDeck(d.name || "", d.text || "", id);
+        }
+        return true;
+      }
+      addDeck("Deck 1");
+      addDeck("Deck 2");
+      return false;
+    }
+
+    function restoreCollectionFromLocal() {
+      const saved = readLocalJson(LS_COLLECTION);
+      if (saved?.cards || saved?.has_collection || saved?.override_count) {
+        collectionState = saved;
+        collectionInBrowser = true;
+        updateCollectionStatus();
+        renderCollectionSearch();
+        return true;
+      }
+      return false;
+    }
+
+    function addDeck(name = "", text = "", fixedId = null) {
+      let id;
+      if (fixedId != null) {
+        id = fixedId;
+        deckId = Math.max(deckId, id);
+      } else {
+        deckId += 1;
+        id = deckId;
+      }
       const el = document.createElement("div");
       el.className = "deck";
       el.dataset.id = String(id);
@@ -967,6 +1377,7 @@
         <p class="deck-meta">0 cards</p>
       `;
       const ta = el.querySelector("textarea");
+      const nameInput = el.querySelector(".deck-name");
       ta.value = text;
       const meta = el.querySelector(".deck-meta");
       const refreshMeta = () => {
@@ -975,9 +1386,18 @@
         const cmd = parsed.commanders.length
           ? ` · commander${parsed.commanders.length > 1 ? "s" : ""}: ${parsed.commanders.map(c => c.card).join(", ")}`
           : "";
-        meta.textContent = `${n} cards${cmd}`;
+        const assignedHere = Object.entries(cardAssignments).filter(([, deckId]) => String(deckId) === String(id)).length;
+        const assignNote = assignedHere
+          ? ` · ${assignedHere} single cop${assignedHere === 1 ? "y" : "ies"} here`
+          : "";
+        meta.textContent = `${n} cards${cmd}${assignNote}`;
       };
-      ta.addEventListener("input", refreshMeta);
+      const onDeckEdit = () => {
+        refreshMeta();
+        scheduleSaveLocal();
+      };
+      ta.addEventListener("input", onDeckEdit);
+      nameInput.addEventListener("input", onDeckEdit);
       el.querySelector(".power-deck").addEventListener("click", () => {
         const list = ta.value.trim();
         if (!list) {
@@ -989,11 +1409,21 @@
       el.querySelector(".remove-deck").addEventListener("click", () => {
         if (decksEl.children.length <= 1) {
           ta.value = "";
-          el.querySelector(".deck-name").value = `Deck ${id}`;
+          nameInput.value = `Deck ${id}`;
           refreshMeta();
+          scheduleSaveLocal();
           return;
         }
+        purgeAssignmentsForDeckId(id);
         el.remove();
+        scheduleSaveLocal();
+        if (lastAnalyze) {
+          const decks = gatherDecks().filter((d) => d.names.size > 0);
+          if (decks.length) {
+            const shared = findShared(decks, { excludeBasics: document.getElementById("excludeBasics").checked });
+            renderShared(shared, decks);
+          }
+        }
       });
       decksEl.appendChild(el);
       refreshMeta();
@@ -1027,9 +1457,8 @@
       const root = document.getElementById("powerResults");
       if (!root) return;
       const nonempty = (decks || []).filter((d) => (d.text || "").trim() && d.names.size > 0);
-      setMainTabBadge("power", nonempty.length || null);
       if (!nonempty.length) {
-        root.innerHTML = `<p class="empty">Paste decks and Analyze to get EDH Power Level links.</p>`;
+        root.innerHTML = `<p class="empty">Paste decks and Analyze or Quick assign to get EDH Power Level links.</p>`;
         return;
       }
       root.innerHTML = `<div class="power-grid">${nonempty.map((d) => {
@@ -1118,6 +1547,7 @@
 
     function gatherDecks() {
       return [...decksEl.querySelectorAll(".deck")].map((el, i) => {
+        const id = parseInt(el.dataset.id, 10);
         const name = el.querySelector(".deck-name").value.trim() || `Deck ${i + 1}`;
         const text = el.querySelector(".deck-text").value;
         const parsed = parseDecklist(text);
@@ -1128,7 +1558,7 @@
           if (!names.has(k)) names.set(k, { name: c.card, quantity: 0 });
           names.get(k).quantity += c.quantity;
         }
-        return { name, text, parsed, names };
+        return { id, name, text, parsed, names, el };
       });
     }
 
@@ -1139,7 +1569,7 @@
           if (excludeBasics && isBasicLand(info.name)) continue;
           if (!map.has(key)) map.set(key, { name: info.name, decks: [], totalQty: 0 });
           const row = map.get(key);
-          row.decks.push({ index: idx, name: d.name, quantity: info.quantity });
+          row.decks.push({ index: idx, id: d.id, name: d.name, quantity: info.quantity });
           row.totalQty += info.quantity;
         }
       });
@@ -1196,16 +1626,64 @@
       return (variant.produces || []).map((p) => p.feature?.name || "?").filter(Boolean);
     }
 
-    function wireMainTabs() {
+    function switchMainTab(tabId) {
       const tabs = document.querySelectorAll("#mainTabs .tab");
       const panels = document.querySelectorAll("[data-main-panel]");
-      tabs.forEach((tab) => {
-        tab.addEventListener("click", () => {
-          const id = tab.getAttribute("data-main-tab");
-          tabs.forEach((t) => t.classList.toggle("active", t === tab));
-          panels.forEach((p) => p.classList.toggle("active", p.getAttribute("data-main-panel") === id));
-        });
+      tabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-main-tab") === tabId));
+      panels.forEach((p) => p.classList.toggle("active", p.getAttribute("data-main-panel") === tabId));
+      if (tabId === "collection") renderCollectionSearch();
+      try {
+        history.replaceState(null, "", tabId === "imports" ? location.pathname : `#${tabId}`);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    function wireMainTabs() {
+      document.querySelectorAll("#mainTabs .tab").forEach((tab) => {
+        tab.addEventListener("click", () => switchMainTab(tab.getAttribute("data-main-tab")));
       });
+    }
+
+    function showResultsChrome() {
+      resultsEl.classList.add("show");
+      exportBar.classList.add("show");
+      printOpts.classList.add("show");
+    }
+
+    async function quickAssign() {
+      const decks = gatherDecks().filter((d) => d.names.size > 0);
+      if (!decks.length) {
+        setStatus("Add decklists on the Imports tab first (or sync from your PC), then try again.", "error");
+        switchMainTab("imports");
+        return;
+      }
+      const excludeBasics = document.getElementById("excludeBasics").checked;
+      const excludeBasicsOwned = document.getElementById("excludeBasicsOwned").checked;
+      const shared = findShared(decks, { excludeBasics });
+      lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
+      renderShared(shared, decks);
+      renderOwnership(lastOwnership);
+      renderPowerLevels(decks);
+      refreshAllDeckMeta();
+      lastAnalyze = {
+        shared,
+        decks,
+        deckResults: lastDeckResults || [],
+        showAlmost: document.getElementById("showAlmost").checked,
+      };
+      refreshExportText();
+      showResultsChrome();
+      switchMainTab("shared");
+      const conflicts = countAssignmentConflicts(shared);
+      setStatus(
+        conflicts
+          ? `${conflicts} staple${conflicts === 1 ? "" : "s"} need a deck — pick from the dropdown. Saved to this browser and server.`
+          : "Update which deck has each copy — saved to this browser and server.",
+        "ok"
+      );
+      schedulePushSession();
+      document.getElementById("panelShared").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function setMainTabBadge(tabId, count) {
@@ -1238,28 +1716,101 @@
       });
     }
 
+    function refreshAllDeckMeta() {
+      decksEl.querySelectorAll(".deck").forEach((el) => {
+        const id = parseInt(el.dataset.id, 10);
+        const ta = el.querySelector(".deck-text");
+        const meta = el.querySelector(".deck-meta");
+        if (!ta || !meta) return;
+        const parsed = parseDecklist(ta.value);
+        const n = parsed.main.length + parsed.commanders.length;
+        const cmd = parsed.commanders.length
+          ? ` · commander${parsed.commanders.length > 1 ? "s" : ""}: ${parsed.commanders.map((c) => c.card).join(", ")}`
+          : "";
+        const assignedHere = Object.entries(cardAssignments).filter(([, deckId]) => String(deckId) === String(id)).length;
+        const assignNote = assignedHere
+          ? ` · ${assignedHere} single cop${assignedHere === 1 ? "y" : "ies"} here`
+          : "";
+        meta.textContent = `${n} cards${cmd}${assignNote}`;
+      });
+    }
+
+    function assignmentSelectHtml(row) {
+      const k = cardKey(row.name);
+      const current = getCardAssignment(k);
+      const opts = [`<option value="">Unassigned</option>`];
+      for (const d of row.decks) {
+        const sel = String(d.id) === String(current) ? " selected" : "";
+        opts.push(`<option value="${escapeAttr(String(d.id))}"${sel}>${escapeHtml(d.name)}</option>`);
+      }
+      return `<select class="assign-deck" data-card-key="${escapeAttr(k)}" aria-label="Which deck has your copy">${opts.join("")}</select>`;
+    }
+
+    function wireAssignmentSelects() {
+      document.querySelectorAll(".assign-deck").forEach((sel) => {
+        sel.addEventListener("change", () => {
+          const key = sel.getAttribute("data-card-key");
+          setCardAssignment(key, sel.value);
+          const decks = gatherDecks().filter((d) => d.names.size > 0);
+          renderShared(lastSharedForAssign.length ? lastSharedForAssign : findShared(decks, {
+            excludeBasics: document.getElementById("excludeBasics").checked,
+          }), decks);
+          refreshAllDeckMeta();
+          if (lastAnalyze) refreshExportText();
+        });
+      });
+    }
+
     function renderShared(shared, decks) {
+      lastSharedForAssign = shared;
+      const noticeEl = document.getElementById("sharedAssignNotice");
       const filters = document.getElementById("sharedFilters");
       filters.innerHTML = decks
         .map((d) => `<span class="pill on">${escapeHtml(d.name)}</span>`)
         .join("");
 
-      setMainTabBadge("shared", shared.length);
+      const conflicts = countAssignmentConflicts(shared);
+      setMainTabBadge("shared", shared.length ? (conflicts ? `${shared.length} (${conflicts}!)` : shared.length) : null);
 
       if (!shared.length) {
+        noticeEl.innerHTML = "";
         document.getElementById("sharedTable").innerHTML =
           `<p class="empty">No shared cards across these decks${document.getElementById("excludeBasics").checked ? " (basics ignored)" : ""}.</p>`;
         return;
       }
 
+      if (conflicts) {
+        noticeEl.innerHTML = `
+          <div class="sync-notice">
+            <strong>${conflicts} shared card${conflicts === 1 ? "" : "s"}</strong>
+            still need a home deck — choose where your only copy lives (not a buy list).
+          </div>`;
+      } else if (shared.some((row) => ownedQuantity(row.name) === 1)) {
+        noticeEl.innerHTML = `
+          <div class="sync-notice" style="border-color:color-mix(in srgb, var(--accent) 45%, var(--border));background:color-mix(in srgb, var(--accent) 10%, transparent)">
+            Use the dropdown to track which deck has each single copy. Update it when you swap decks.
+          </div>`;
+      } else {
+        noticeEl.innerHTML = "";
+      }
+
       const rows = shared.map((row) => {
+        const owned = ownedQuantity(row.name);
+        const conflict = assignmentNeedsAction(row);
         const tags = row.decks
           .map((d) => `<span class="tag">${escapeHtml(d.name)} ×${d.quantity}</span>`)
           .join("");
-        return `<tr>
-          <td><strong>${escapeHtml(row.name)}</strong></td>
+        const ownedNote = collectionState?.has_collection ? assignmentOwnedLabel(owned) : "";
+        const assignId = getCardAssignment(cardKey(row.name));
+        const home = assignId ? deckNameById(assignId, decks) : "";
+        const homeNote = home && !conflict
+          ? `<span class="tag" style="color:var(--accent)">in ${escapeHtml(home)}</span>`
+          : "";
+        return `<tr class="${conflict ? "assign-conflict" : ""}">
+          <td><strong>${escapeHtml(row.name)}</strong>${ownedNote}${homeNote}</td>
           <td class="count">${row.decks.length}/${decks.length}</td>
-          <td><div class="deck-tags">${tags}</div></td>
+          <td class="hide-sm"><div class="deck-tags">${tags}</div></td>
+          <td>${assignmentSelectHtml(row)}</td>
         </tr>`;
       }).join("");
 
@@ -1269,12 +1820,14 @@
             <tr>
               <th>Card</th>
               <th>In decks</th>
-              <th class="hide-sm">Where</th>
+              <th class="hide-sm">Listed in</th>
+              <th>Your copy is in</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       `;
+      wireAssignmentSelects();
     }
 
     function renderComboCard(v, almost = false) {
@@ -1372,15 +1925,26 @@
       wireSubtabs(sub, root, "combo");
     }
 
-    function ownershipDeckHtml({ deck, missing, owned }) {
-      const missRows = missing.map((row) => `
-        <tr>
-          <td>${escapeHtml(row.name)}</td>
+    function ownershipDeckHtml({ deck, missing, owned }, multiMissingKeys) {
+      const missRows = missing.map((row) => {
+        const multi = multiMissingKeys?.has(cardKey(row.name));
+        const badge = multi
+          ? `<span class="missing-multi-badge" title="Also missing in other loaded decks">Multi-deck</span>`
+          : "";
+        return `
+        <tr class="${multi ? "missing-multi" : ""}">
+          <td><strong>${escapeHtml(row.name)}</strong>${badge}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}</td>
           <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
-        </tr>`).join("");
+        </tr>`;
+      }).join("");
+      const multiCount = missing.filter((row) => multiMissingKeys?.has(cardKey(row.name))).length;
       return `
-        <p class="sub" style="margin-top:0">${owned.length} owned · <span class="owned-no">${missing.length} missing</span></p>
+        <p class="sub" style="margin-top:0">${owned.length} owned · <span class="owned-no">${missing.length} missing</span>${
+          multiCount
+            ? ` · <span class="owned-no">${multiCount} also needed by other decks</span>`
+            : ""
+        }</p>
         ${missing.length
           ? `<table><thead><tr><th>Missing</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
           : `<p class="empty" style="color:var(--accent)">Nothing missing for this deck.</p>`}
@@ -1401,26 +1965,35 @@
       }
 
       const syncMbOnly = ownership.syncMbOnly || [];
+      const multiMissing = (ownership.missingAll || []).filter((row) => (row.decks || []).length >= 2);
+      const multiMissingKeys = new Set(multiMissing.map((row) => cardKey(row.name)));
       setMainTabBadge("owned", ownership.missingAll.length);
 
+      const notices = [];
+      if (multiMissing.length) {
+        notices.push(`
+          <div class="sync-notice">
+            <strong>${multiMissing.length} missing card${multiMissing.length === 1 ? "" : "s"}</strong>
+            are used in multiple decks (highlighted below — buy these first).
+          </div>`);
+      }
       if (syncMbOnly.length) {
-        syncEl.innerHTML = `
+        notices.push(`
           <div class="sync-notice">
             <strong>${syncMbOnly.length} card${syncMbOnly.length === 1 ? "" : "s"}</strong>
             in your decks are owned in ManaBox but not in Deckstats.
             <p class="sub">Use the “ManaBox only” tab below — good candidates to add on Deckstats.</p>
-          </div>`;
+          </div>`);
       } else if (
         collectionState?.sources?.manabox?.present &&
         collectionState?.sources?.deckstats?.present
       ) {
-        syncEl.innerHTML = `
+        notices.push(`
           <div class="sync-notice" style="border-color:color-mix(in srgb, var(--accent) 45%, var(--border));background:color-mix(in srgb, var(--accent) 10%, transparent)">
             Deckstats and ManaBox agree for these decks (no “owned in ManaBox, missing in Deckstats” cards).
-          </div>`;
-      } else {
-        syncEl.innerHTML = "";
+          </div>`);
       }
+      syncEl.innerHTML = notices.join("");
 
       const ids = ["all", ...ownership.perDeck.map((_, i) => `d${i}`), ...(syncMbOnly.length ? ["sync"] : [])];
       if (!ids.includes(activeOwnedSub)) activeOwnedSub = "all";
@@ -1435,10 +2008,21 @@
           : []),
       ].join("");
 
-      const allRows = ownership.missingAll.map((row) => {
+      const sortedMissing = ownership.missingAll.slice().sort((a, b) => {
+        const ad = (a.decks || []).length;
+        const bd = (b.decks || []).length;
+        if (bd !== ad) return bd - ad;
+        return a.name.localeCompare(b.name);
+      });
+
+      const allRows = sortedMissing.map((row) => {
         const short = Math.max(0, row.need - row.have);
-        return `<tr>
-          <td><strong>${escapeHtml(row.name)}</strong></td>
+        const multi = (row.decks || []).length >= 2;
+        const badge = multi
+          ? `<span class="missing-multi-badge">${row.decks.length} decks</span>`
+          : "";
+        return `<tr class="${multi ? "missing-multi" : ""}">
+          <td><strong>${escapeHtml(row.name)}</strong>${badge}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}${short ? ` (short ${short})` : ""}</td>
           <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
           <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
@@ -1474,7 +2058,7 @@
         ...ownership.perDeck.map((block, i) =>
           `<div class="panel-sub${activeOwnedSub === `d${i}` ? " active" : ""}" data-sub-panel="d${i}">
             <h3 style="margin-top:0">${escapeHtml(block.deck.name)}</h3>
-            ${ownershipDeckHtml(block)}
+            ${ownershipDeckHtml(block, multiMissingKeys)}
           </div>`
         ),
         ...(syncMbOnly.length
@@ -1497,8 +2081,10 @@
     }
 
     function updateCollectionStatus() {
+      const browserNote = document.getElementById("ownedBrowserNote");
       if (!collectionState) {
         collectionStatus.textContent = "No collection loaded yet.";
+        if (browserNote) browserNote.textContent = "";
         return;
       }
       const sources = collectionState.sources || {};
@@ -1519,19 +2105,26 @@
 
       if (!parts.length) {
         collectionStatus.textContent = "No collection loaded yet.";
+        if (browserNote) browserNote.textContent = "";
         return;
       }
+      const browserTag = collectionInBrowser ? " · saved in this browser" : "";
       collectionStatus.textContent =
         `Merged ${collectionState.unique_cards || 0} unique / ${collectionState.total_copies || 0} copies · ` +
-        parts.join(" · ");
+        parts.join(" · ") +
+        browserTag;
+      if (browserNote) {
+        browserNote.textContent = collectionInBrowser
+          ? "Collection stored in this browser — survives Render redeploys and refresh."
+          : "";
+      }
     }
 
     async function loadCollection(full = true) {
       const res = await fetch(`/api/collection${full ? "?full=1" : ""}`);
       const data = await res.json();
       if (!data.ok && data.error) throw new Error(data.error);
-      collectionState = data;
-      updateCollectionStatus();
+      applyCollectionState(data);
       return data;
     }
 
@@ -1546,7 +2139,7 @@
       if (!data.ok) throw new Error(data.error || "Upload failed");
       await loadCollection(true);
       setStatus(
-        `Saved ManaBox collection locally (${data.unique_cards} unique cards).`,
+        `Saved collection in this browser (${data.unique_cards} unique cards).`,
         "ok"
       );
     }
@@ -1592,6 +2185,132 @@
 
     function isEffectivelyOwned(cardName) {
       return ownedQuantity(cardName) > 0;
+    }
+
+    const COLLECTION_SEARCH_LIMIT = 200;
+
+    function gatherCollectionSearchRows() {
+      const rows = [];
+      const byKey = new Map();
+      const cards = collectionState?.cards || {};
+      const overrideKeys = new Set(collectionState?.override_keys || []);
+
+      for (const [key, info] of Object.entries(cards)) {
+        if (info?.face_of) continue;
+        const name = info?.name || key;
+        const k = cardKey(name);
+        if (byKey.has(k)) continue;
+        const row = {
+          name,
+          key: k,
+          owned: ownedQuantity(name),
+          manabox: sourceQuantity(name, "manabox"),
+          deckstats: sourceQuantity(name, "deckstats"),
+          override: overrideKeys.has(k),
+          aliasKeys: [],
+        };
+        byKey.set(k, row);
+        rows.push(row);
+      }
+
+      // Attach DFC face aliases for search matching without duplicating rows
+      for (const [key, info] of Object.entries(cards)) {
+        if (!info?.face_of) continue;
+        const parent = byKey.get(cardKey(info.face_of));
+        if (parent) parent.aliasKeys.push(key);
+      }
+
+      for (const name of collectionState?.overrides || []) {
+        const k = cardKey(name);
+        if (byKey.has(k)) continue;
+        const row = {
+          name,
+          key: k,
+          owned: Math.max(1, ownedQuantity(name)),
+          manabox: sourceQuantity(name, "manabox"),
+          deckstats: sourceQuantity(name, "deckstats"),
+          override: true,
+          aliasKeys: [],
+        };
+        byKey.set(k, row);
+        rows.push(row);
+      }
+
+      return rows.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function renderCollectionSearch() {
+      const root = document.getElementById("collectionSearchResults");
+      const meta = document.getElementById("collectionSearchMeta");
+      const input = document.getElementById("collectionSearch");
+      if (!root || !meta) return;
+
+      const hasCards = Object.keys(collectionState?.cards || {}).length > 0;
+      const hasOverrides = (collectionState?.override_count || 0) > 0;
+      if (!collectionState || (!hasCards && !hasOverrides && !collectionState.has_collection)) {
+        setMainTabBadge("collection", null);
+        meta.textContent = "No collection loaded yet.";
+        root.innerHTML =
+          `<p class="empty">Upload a CSV or pull Deckstats on the Imports tab, then search here.</p>`;
+        return;
+      }
+
+      const all = gatherCollectionSearchRows();
+      setMainTabBadge("collection", all.length || null);
+      const q = (input?.value || "").trim().toLowerCase();
+      const matched = !q
+        ? all
+        : all.filter((row) => {
+            if (row.name.toLowerCase().includes(q)) return true;
+            if (row.key.includes(q)) return true;
+            if ((row.aliasKeys || []).some((a) => a.includes(q))) return true;
+            if (row.name.includes(" // ")) {
+              return row.name.split(" // ").some((f) => f.trim().toLowerCase().includes(q));
+            }
+            return false;
+          });
+
+      meta.textContent = q
+        ? `${matched.length.toLocaleString()} match${matched.length === 1 ? "" : "es"} of ${all.length.toLocaleString()} unique cards`
+        : `${all.length.toLocaleString()} unique cards in collection`;
+
+      if (!matched.length) {
+        root.innerHTML = `<p class="empty">No cards match “${escapeHtml(input.value)}”.</p>`;
+        return;
+      }
+
+      const shown = matched.slice(0, COLLECTION_SEARCH_LIMIT);
+      const truncated = matched.length > shown.length;
+      root.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Card</th>
+              <th>Owned</th>
+              <th class="hide-sm">ManaBox</th>
+              <th class="hide-sm">Deckstats</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${shown
+              .map(
+                (row) => `
+              <tr>
+                <td>${escapeHtml(row.name)}${row.override ? ' <span class="tag">override</span>' : ""}</td>
+                <td>${row.owned}</td>
+                <td class="hide-sm">${row.manabox || "—"}</td>
+                <td class="hide-sm">${row.deckstats || "—"}</td>
+              </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
+        ${
+          truncated
+            ? `<p class="deck-meta">Showing first ${COLLECTION_SEARCH_LIMIT} of ${matched.length.toLocaleString()}. Refine your search to narrow results.</p>`
+            : ""
+        }
+      `;
     }
 
     function computeOwnership(decks, { excludeBasics }) {
@@ -1682,21 +2401,54 @@
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "Failed");
-        await loadCollection(true);
-        // Refresh ownership view if we have last decks
+        if (!collectionState) {
+          collectionState = {
+            cards: {},
+            cards_by_source: { manabox: {}, deckstats: {} },
+            sources: {},
+            has_collection: false,
+          };
+        }
+        collectionState.overrides = data.overrides || [];
+        collectionState.override_keys = (data.overrides || []).map((n) => cardKey(n));
+        collectionState.override_count = data.override_count || 0;
+        collectionState.has_collection = Boolean(
+          collectionState.has_collection || collectionState.override_count > 0
+        );
+        applyCollectionState(collectionState);
         if (lastOwnership) {
           const decks = gatherDecks().filter((d) => d.names.size > 0);
           const excludeBasics = document.getElementById("excludeBasicsOwned").checked;
           lastOwnership = computeOwnership(decks, { excludeBasics });
           renderOwnership(lastOwnership);
-          if (resultsEl.classList.contains("show") && lastAnalyze) {
+          if (lastAnalyze) {
+            const shared = findShared(decks, { excludeBasics: document.getElementById("excludeBasics").checked });
+            renderShared(shared, decks);
             refreshExportText();
           }
+          renderCollectionSearch();
         }
-        setStatus(`Marked “${name}” as owned (saved locally).`, "ok");
+        setStatus(`Marked “${name}” as owned (saved in this browser).`, "ok");
       } catch (err) {
         setStatus(String(err.message || err), "error");
       }
+    }
+
+    function buildAssignmentsReportLines(shared, decks) {
+      const lines = [];
+      const assigned = (shared || []).filter((row) => getCardAssignment(cardKey(row.name)));
+      if (!assigned.length) return lines;
+      lines.push("======== STAPLE ASSIGNMENTS (one copy each) ========");
+      for (const row of assigned) {
+        const home = deckNameById(getCardAssignment(cardKey(row.name)), decks);
+        const also = row.decks
+          .map((d) => d.name)
+          .filter((n) => n !== home)
+          .join(", ");
+        lines.push(`- ${row.name} → ${home} (only copy; also listed in: ${also || "—"})`);
+      }
+      lines.push("");
+      return lines;
     }
 
     function getPrintSections() {
@@ -1704,12 +2456,15 @@
         shared: document.getElementById("printShared").checked,
         combos: document.getElementById("printCombos").checked,
         missing: document.getElementById("printMissing").checked,
+        assignments: document.getElementById("printAssignments")?.checked ?? true,
         power: document.getElementById("printPower")?.checked ?? true,
       };
     }
 
     function buildReportText(shared, decks, deckResults, showAlmost, ownership, sections) {
-      const include = sections || { shared: true, combos: true, missing: true, power: true };
+      const include = sections || {
+        shared: true, combos: true, missing: true, assignments: true, power: true,
+      };
       const lines = [];
       const date = new Date().toLocaleString();
       lines.push("DECK DUPES & COMBOS");
@@ -1718,6 +2473,7 @@
       const includedLabels = [];
       if (include.missing) includedLabels.push("missing");
       if (include.shared) includedLabels.push("shared");
+      if (include.assignments) includedLabels.push("assignments");
       if (include.combos) includedLabels.push("combos");
       if (include.power) includedLabels.push("power links");
       lines.push(`Sections: ${includedLabels.length ? includedLabels.join(", ") : "(none selected)"}`);
@@ -1730,12 +2486,19 @@
         } else if (!ownership.missingAll.length) {
           lines.push("All compared cards are owned (or marked owned).");
         } else {
-          lines.push(`Missing across decks (${ownership.missingAll.length}):`);
-          for (const row of ownership.missingAll) {
-            lines.push(
-              `- ${row.name} (need ${row.need}, have ${row.have}) [${row.decks.join(", ")}]`
-            );
-          }
+        lines.push(`Missing across decks (${ownership.missingAll.length}):`);
+        const sortedMiss = ownership.missingAll.slice().sort((a, b) => {
+          const ad = (a.decks || []).length;
+          const bd = (b.decks || []).length;
+          if (bd !== ad) return bd - ad;
+          return a.name.localeCompare(b.name);
+        });
+        for (const row of sortedMiss) {
+          const multi = (row.decks || []).length >= 2 ? ` ★ MULTI (${row.decks.length} decks)` : "";
+          lines.push(
+            `- ${row.name} (need ${row.need}, have ${row.have}) [${row.decks.join(", ")}]${multi}`
+          );
+        }
           for (const block of ownership.perDeck) {
             lines.push("");
             lines.push(`--- ${block.deck.name} missing (${block.missing.length}) ---`);
@@ -1763,6 +2526,10 @@
           }
         }
         lines.push("");
+      }
+
+      if (include.assignments) {
+        lines.push(...buildAssignmentsReportLines(shared, decks));
       }
 
       if (include.combos) {
@@ -1861,6 +2628,7 @@
       exportBar.classList.remove("show");
       printOpts.classList.remove("show");
       exportPanel.classList.remove("show");
+      resultsEl.classList.remove("show");
       toggleTextBtn.textContent = "Show plain text";
     }
 
@@ -1871,7 +2639,7 @@
       }
       const text = refreshExportText();
       const sections = getPrintSections();
-      if (!sections.shared && !sections.combos && !sections.missing && !sections.power) {
+      if (!sections.shared && !sections.combos && !sections.missing && !sections.assignments && !sections.power) {
         setStatus("Select at least one section to copy.", "error");
         return;
       }
@@ -1893,7 +2661,7 @@
         return;
       }
       const sections = getPrintSections();
-      if (!sections.shared && !sections.combos && !sections.missing && !sections.power) {
+      if (!sections.shared && !sections.combos && !sections.missing && !sections.assignments && !sections.power) {
         setStatus("Select at least one section to print.", "error");
         return;
       }
@@ -1907,6 +2675,7 @@
         setStatus("Paste at least one decklist.", "error");
         resultsEl.classList.remove("show");
         clearExport();
+        switchMainTab("imports");
         return;
       }
 
@@ -1918,7 +2687,9 @@
       renderShared(shared, decks);
       lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
       renderOwnership(lastOwnership);
-      resultsEl.classList.add("show");
+      renderPowerLevels(decks);
+      showResultsChrome();
+      switchMainTab("shared");
 
       const btn = document.getElementById("analyze");
       btn.disabled = true;
@@ -1938,8 +2709,10 @@
         if (i < decks.length - 1) await new Promise((r) => setTimeout(r, 350));
       }
 
+      lastDeckResults = deckResults;
       renderCombos(deckResults, showAlmost);
       renderPowerLevels(decks);
+      refreshAllDeckMeta();
       lastAnalyze = { shared, decks, deckResults, showAlmost };
       refreshExportText();
       const comboCount = deckResults.reduce((n, r) => n + (r.combos?.included?.length || 0), 0);
@@ -1955,6 +2728,7 @@
         `Done — ${shared.length} shared card${shared.length === 1 ? "" : "s"}, ${comboCount} included combo${comboCount === 1 ? "" : "s"}${ownedNote}${syncNote}.`,
         "ok"
       );
+      schedulePushSession();
       btn.disabled = false;
     }
 
@@ -1964,22 +2738,48 @@
       }
     }
 
-    document.getElementById("addDeck").addEventListener("click", () => addDeck());
+    document.getElementById("addDeck").addEventListener("click", () => {
+      addDeck();
+      scheduleSaveLocal();
+    });
     document.getElementById("clearDecks").addEventListener("click", () => {
       if (!confirm("Remove all pasted/imported decks from this page?")) return;
       decksEl.innerHTML = "";
       deckId = 0;
+      cardAssignments = {};
+      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS);
       addDeck("Deck 1");
-      resultsEl.classList.remove("show");
+      addDeck("Deck 2");
+      scheduleSaveLocal();
       clearExport();
       lastOwnership = null;
       lastDeckResults = null;
+      lastSharedForAssign = [];
+      setMainTabBadge("shared", null);
+      setMainTabBadge("combos", null);
+      setMainTabBadge("owned", null);
+      document.getElementById("sharedTable").innerHTML =
+        `<p class="empty">Import decks on the Imports tab, then Analyze or Quick assign to see shared staples and copy locations.</p>`;
+      document.getElementById("sharedAssignNotice").innerHTML = "";
+      document.getElementById("sharedFilters").innerHTML = "";
+      document.getElementById("comboResults").innerHTML =
+        `<p class="empty">Run Analyze decks on the Imports tab to look up combos (this step can take a bit).</p>`;
+      document.getElementById("comboSubtabs").innerHTML = "";
+      document.getElementById("ownedResults").innerHTML =
+        `<p class="empty">Upload a collection and Analyze (or Quick assign) to compare owned vs missing cards.</p>`;
+      document.getElementById("ownedSubtabs").innerHTML = "";
+      document.getElementById("ownedSyncNotice").innerHTML = "";
+      document.getElementById("powerResults").innerHTML =
+        `<p class="empty">Power level links appear after you Analyze or Quick assign.</p>`;
       setStatus("All decks cleared.", "ok");
+      switchMainTab("imports");
     });
     document.getElementById("analyze").addEventListener("click", analyze);
+    document.getElementById("quickAssign").addEventListener("click", quickAssign);
+    document.getElementById("quickAssignToolbar").addEventListener("click", quickAssign);
     copyBtn.addEventListener("click", copyResults);
     printBtn.addEventListener("click", printResults);
-    ["printShared", "printCombos", "printMissing", "printPower"].forEach((id) => {
+    ["printShared", "printCombos", "printMissing", "printAssignments", "printPower"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener("change", () => {
@@ -2124,7 +2924,10 @@
         if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 250));
       }
       btn.disabled = false;
-      if (ok) setStatus(`Imported ${ok} deck${ok === 1 ? "" : "s"} from Deckstats.`, "ok");
+      if (ok) {
+        scheduleSaveLocal();
+        setStatus(`Imported ${ok} deck${ok === 1 ? "" : "s"} from Deckstats.`, "ok");
+      }
     }
 
     document.getElementById("loadDeckstats").addEventListener("click", loadDeckstatsProfile);
@@ -2160,7 +2963,7 @@
       }
     });
     document.getElementById("clearCollection").addEventListener("click", async () => {
-      if (!confirm("Clear saved ownership data (CSV + Deckstats pull)?")) {
+      if (!confirm("Clear saved ownership data (CSV + Deckstats pull) from this browser?")) {
         return;
       }
       const clearOverrides = confirm("Also clear local “mark owned” overrides?");
@@ -2171,8 +2974,18 @@
         );
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "Clear failed");
-        await loadCollection(true);
-        setStatus("Saved ownership data cleared.", "ok");
+        clearLocalKeys(LS_COLLECTION);
+        collectionState = null;
+        collectionInBrowser = false;
+        if (!restoreCollectionFromLocal()) {
+          try {
+            await loadCollection(true);
+          } catch {
+            updateCollectionStatus();
+            renderCollectionSearch();
+          }
+        }
+        setStatus("Saved ownership data cleared from this browser.", "ok");
       } catch (err) {
         setStatus(String(err.message || err), "error");
       }
@@ -2213,13 +3026,40 @@
       if (e.key === "Enter") loadDeckstatsCollection();
     });
 
-    checkCors();
-    wireMainTabs();
-    addDeck("Deck 1");
-    addDeck("Deck 2");
-    loadCollection(true).catch(() => {
-      collectionStatus.textContent = "Could not load saved collection (is server.py running?).";
+    document.getElementById("collectionSearch").addEventListener("input", () => {
+      renderCollectionSearch();
     });
+    document.getElementById("clearCollectionSearch").addEventListener("click", () => {
+      const input = document.getElementById("collectionSearch");
+      input.value = "";
+      renderCollectionSearch();
+      input.focus();
+    });
+
+    async function initApp() {
+      checkCors();
+      wireMainTabs();
+      restoreAssignmentsFromLocal();
+      restoreDecksFromLocal();
+      if (!restoreCollectionFromLocal()) {
+        try {
+          await loadCollection(true);
+        } catch {
+          collectionStatus.textContent = "No collection loaded yet (upload CSV or use local server).";
+          renderCollectionSearch();
+        }
+      }
+      await pullSessionFromServer();
+      renderCollectionSearch();
+      const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
+      if (hash === "assign" || hash === "mobile") {
+        await quickAssign();
+      } else if (["shared", "combos", "owned", "collection", "imports"].includes(hash)) {
+        switchMainTab(hash);
+      }
+    }
+
+    initApp();
   </script>
 </body>
 </html>

@@ -24,6 +24,8 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", str(ROOT / "data")))
 COLLECTION_PATH = DATA_DIR / "collection.json"  # ManaBox / CSV upload
 DECKSTATS_COLLECTION_PATH = DATA_DIR / "deckstats_collection.json"
 OVERRIDES_PATH = DATA_DIR / "owned_overrides.json"
+ASSIGNMENTS_PATH = DATA_DIR / "assignments.json"
+DECKS_SESSION_PATH = DATA_DIR / "decks_session.json"
 SPELLBOOK_FIND_COMBOS = "https://backend.commanderspellbook.com/find-my-combos"
 
 def _pip_install(package: str) -> None:
@@ -769,6 +771,83 @@ def collection_lookup_payload() -> dict:
     }
 
 
+def load_assignments() -> dict:
+    if not ASSIGNMENTS_PATH.exists():
+        return {"assignments": {}, "updated_at": None}
+    try:
+        data = json.loads(ASSIGNMENTS_PATH.read_text(encoding="utf-8"))
+        assignments = data.get("assignments") or {}
+        if not isinstance(assignments, dict):
+            assignments = {}
+        return {
+            "assignments": assignments,
+            "updated_at": data.get("updated_at"),
+        }
+    except (json.JSONDecodeError, OSError):
+        return {"assignments": {}, "updated_at": None}
+
+
+def save_assignments(assignments: dict) -> dict:
+    ensure_data_dir()
+    clean = {}
+    for key, deck_id in (assignments or {}).items():
+        if not key:
+            continue
+        try:
+            clean[str(key)] = int(deck_id)
+        except (TypeError, ValueError):
+            continue
+    payload = {"assignments": clean, "updated_at": utc_now()}
+    ASSIGNMENTS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
+def load_decks_session() -> dict:
+    if not DECKS_SESSION_PATH.exists():
+        return {"decks": [], "updated_at": None}
+    try:
+        data = json.loads(DECKS_SESSION_PATH.read_text(encoding="utf-8"))
+        decks = data.get("decks") or []
+        if not isinstance(decks, list):
+            decks = []
+        clean = []
+        for deck in decks:
+            if not isinstance(deck, dict):
+                continue
+            try:
+                deck_id = int(deck.get("id"))
+            except (TypeError, ValueError):
+                continue
+            name = str(deck.get("name") or "").strip() or f"Deck {deck_id}"
+            text = str(deck.get("text") or "")
+            clean.append({"id": deck_id, "name": name, "text": text})
+        return {"decks": clean, "updated_at": data.get("updated_at")}
+    except (json.JSONDecodeError, OSError):
+        return {"decks": [], "updated_at": None}
+
+
+def save_decks_session(decks: list) -> dict:
+    ensure_data_dir()
+    clean = []
+    seen_ids = set()
+    for deck in decks or []:
+        if not isinstance(deck, dict):
+            continue
+        try:
+            deck_id = int(deck.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if deck_id in seen_ids:
+            continue
+        seen_ids.add(deck_id)
+        name = str(deck.get("name") or "").strip() or f"Deck {deck_id}"
+        text = str(deck.get("text") or "")
+        clean.append({"id": deck_id, "name": name, "text": text})
+    payload = {"decks": clean, "updated_at": utc_now()}
+    DECKS_SESSION_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -834,6 +913,30 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(
                     200,
                     collection_lookup_payload() if full else collection_summary(),
+                )
+            except Exception as e:
+                traceback.print_exc()
+                self._json(400, {"ok": False, "error": str(e)})
+            return
+
+        if parsed.path == "/api/assignments":
+            try:
+                data = load_assignments()
+                self._json(
+                    200,
+                    {"ok": True, "assignments": data["assignments"], "updated_at": data["updated_at"]},
+                )
+            except Exception as e:
+                traceback.print_exc()
+                self._json(400, {"ok": False, "error": str(e)})
+            return
+
+        if parsed.path == "/api/decks/session":
+            try:
+                data = load_decks_session()
+                self._json(
+                    200,
+                    {"ok": True, "decks": data["decks"], "updated_at": data["updated_at"]},
                 )
             except Exception as e:
                 traceback.print_exc()
@@ -942,6 +1045,46 @@ class Handler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "overrides": saved["owned"],
                         "override_count": len(saved["owned"]),
+                    },
+                )
+            except Exception as e:
+                traceback.print_exc()
+                self._json(400, {"ok": False, "error": str(e)})
+            return
+
+        if parsed.path == "/api/assignments":
+            try:
+                body = self._read_json_body()
+                assignments = body.get("assignments")
+                if not isinstance(assignments, dict):
+                    raise ValueError("Expected JSON object with assignments map.")
+                saved = save_assignments(assignments)
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "assignments": saved["assignments"],
+                        "updated_at": saved["updated_at"],
+                    },
+                )
+            except Exception as e:
+                traceback.print_exc()
+                self._json(400, {"ok": False, "error": str(e)})
+            return
+
+        if parsed.path == "/api/decks/session":
+            try:
+                body = self._read_json_body()
+                decks = body.get("decks")
+                if not isinstance(decks, list):
+                    raise ValueError("Expected JSON object with decks array.")
+                saved = save_decks_session(decks)
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "decks": saved["decks"],
+                        "updated_at": saved["updated_at"],
                     },
                 )
             except Exception as e:
