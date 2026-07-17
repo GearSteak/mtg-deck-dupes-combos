@@ -665,6 +665,25 @@
       padding: 0.2rem 0.45rem;
       margin-left: 0.35rem;
     }
+    .proxy-badge {
+      display: inline-block;
+      margin-left: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #06241e;
+      background: var(--link);
+      border-radius: 4px;
+      padding: 0.12rem 0.4rem;
+      vertical-align: middle;
+    }
+    .missing-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      justify-content: flex-end;
+    }
 
     .file-input {
       display: none;
@@ -1340,7 +1359,7 @@
     </div>
 
     <div class="tab-panel" data-main-panel="owned" id="panelOwned">
-      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” overrides). Per deck also lists shared cards you own that are still in bulk or another sleeved deck.</p>
+      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” / proxy overrides). Per deck also lists shared cards you own that are still in bulk or another sleeved deck.</p>
       <p class="deck-meta" id="ownedBrowserNote"></p>
       <div id="ownedSyncNotice"></div>
       <div class="subtabs no-print" id="ownedSubtabs"></div>
@@ -1435,6 +1454,7 @@
     const LS_COMBOS = "mtgddc-v1-combos";
     const LS_LAND_OWNED = "mtgddc-v1-land-owned";
     const LS_LAND_ALLOC = "mtgddc-v1-land-alloc";
+    const LS_PROXIED = "mtgddc-v1-proxied";
     const TUTORIAL_COOKIE = "card_checker_tutorial_seen";
 
     let deckId = 0;
@@ -1447,6 +1467,7 @@
     let cardAssignments = {}; // cardKey -> deckId string
     let landOwnedOverrides = {}; // cardKey -> number (manual owned totals for basics)
     let landAllocations = {}; // cardKey -> { [deckId]: qty }
+    let proxiedCards = {}; // cardKey -> display name
     let lastSharedForAssign = [];
     let sharedDeckSelection = null; // Set of selected deck ids; null means initialize to all
     let knownSharedDeckIds = new Set();
@@ -1577,6 +1598,7 @@
       saveAssignmentsLocal();
       writeLocalJson(LS_LAND_OWNED, landOwnedOverrides);
       writeLocalJson(LS_LAND_ALLOC, landAllocations);
+      writeLocalJson(LS_PROXIED, proxiedCards);
       // Collection last — it's the biggest and must not block deck saves.
       saveCollectionLocal();
       schedulePushSession();
@@ -1750,6 +1772,34 @@
       cardAssignments = readLocalJson(LS_ASSIGNMENTS) || {};
       landOwnedOverrides = readLocalJson(LS_LAND_OWNED) || {};
       landAllocations = readLocalJson(LS_LAND_ALLOC) || {};
+      proxiedCards = readLocalJson(LS_PROXIED) || {};
+    }
+
+    function isProxied(cardName) {
+      return Boolean(proxiedCards[cardKey(cardName)]);
+    }
+
+    function setProxied(cardName, on) {
+      const key = cardKey(cardName);
+      if (!key) return;
+      if (on) proxiedCards[key] = normalizeName(cardName) || cardName;
+      else delete proxiedCards[key];
+      writeLocalJson(LS_PROXIED, proxiedCards);
+      scheduleSaveLocal();
+    }
+
+    function refreshOwnershipViews() {
+      const decks = gatherDecks().filter((d) => d.names.size > 0);
+      if (!decks.length) return;
+      const excludeBasics = document.getElementById("excludeBasicsOwned").checked;
+      lastOwnership = computeOwnership(decks, { excludeBasics });
+      renderOwnership(lastOwnership);
+      if (lastAnalyze) {
+        renderShared(null, decks);
+        refreshExportText();
+      }
+      renderPlayDeck();
+      renderCollectionSearch();
     }
 
     function restoreDecksFromLocal() {
@@ -2910,10 +2960,34 @@
         <tr class="${multi ? "missing-multi" : ""}">
           <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}</td>
-          <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
+          <td>
+            <div class="missing-actions">
+              <button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button>
+              <button type="button" class="ghost mark-proxy" data-name="${escapeAttr(row.name)}">Mark proxy</button>
+            </div>
+          </td>
         </tr>`;
       }).join("");
       const multiCount = missing.filter((row) => multiMissingKeys?.has(cardKey(row.name))).length;
+      const proxiedOwned = (owned || []).filter((row) => row.proxied);
+
+      const ownedExtra = proxiedOwned.length
+        ? `
+          <div class="pull-group" style="margin-top:1.25rem">
+            <h4>Proxied in this deck <span class="count">${proxiedOwned.length}</span></h4>
+            <p class="sub" style="margin:0 0 0.65rem">Counted as covered for missing — not a buy list item.</p>
+            <table>
+              <thead><tr><th>Card</th><th></th></tr></thead>
+              <tbody>
+                ${proxiedOwned.map((r) => `
+                  <tr>
+                    <td><strong>${escapeHtml(r.name)}</strong><span class="proxy-badge">Proxy</span></td>
+                    <td><button type="button" class="ghost unmark-proxy" data-name="${escapeAttr(r.name)}">Unmark proxy</button></td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`
+        : "";
 
       const fromBulk = (sleeveFrom || []).filter((r) => r.where === "bulk");
       const fromOther = (sleeveFrom || []).filter((r) => r.where === "deck");
@@ -2941,7 +3015,7 @@
         : "";
 
       return `
-        <p class="sub" style="margin-top:0">${owned.length} owned · <span class="owned-no">${missing.length} missing</span>${
+        <p class="sub" style="margin-top:0">${owned.length} owned${proxiedOwned.length ? ` (${proxiedOwned.length} proxied)` : ""} · <span class="owned-no">${missing.length} missing</span>${
           multiCount
             ? ` · <span class="owned-no">${multiCount} also needed by other decks</span>`
             : ""
@@ -2951,8 +3025,9 @@
             : ""
         }</p>
         ${missing.length
-          ? `<table><thead><tr><th>Missing (buy / mark owned)</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
+          ? `<table><thead><tr><th>Missing (buy / mark owned / proxy)</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
           : `<p class="empty" style="color:var(--accent)">Nothing missing to buy for this deck.</p>`}
+        ${ownedExtra}
         ${sleeveHtml}
       `;
     }
@@ -3034,7 +3109,12 @@
           <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}${short ? ` (short ${short})` : ""}</td>
           <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
-          <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
+          <td>
+            <div class="missing-actions">
+              <button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button>
+              <button type="button" class="ghost mark-proxy" data-name="${escapeAttr(row.name)}">Mark proxy</button>
+            </div>
+          </td>
         </tr>`;
       }).join("");
 
@@ -3078,6 +3158,20 @@
       wireSubtabs(sub, root, "owned");
       root.querySelectorAll(".mark-owned").forEach((btn) => {
         btn.addEventListener("click", () => markOwned(btn.getAttribute("data-name")));
+      });
+      root.querySelectorAll(".mark-proxy").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setProxied(btn.getAttribute("data-name"), true);
+          refreshOwnershipViews();
+          setStatus(`Marked “${btn.getAttribute("data-name")}” as proxied.`, "ok");
+        });
+      });
+      root.querySelectorAll(".unmark-proxy").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setProxied(btn.getAttribute("data-name"), false);
+          refreshOwnershipViews();
+          setStatus(`Unmarked proxy for “${btn.getAttribute("data-name")}”.`, "ok");
+        });
       });
     }
 
@@ -3323,7 +3417,8 @@
     }
 
     function computeOwnership(decks, { excludeBasics }) {
-      if (!collectionState?.has_collection && !(collectionState?.override_count > 0)) {
+      const hasProxies = Object.keys(proxiedCards).length > 0;
+      if (!collectionState?.has_collection && !(collectionState?.override_count > 0) && !hasProxies) {
         return null;
       }
       const excludeBasicsShared = document.getElementById("excludeBasics")?.checked ?? true;
@@ -3337,17 +3432,21 @@
         for (const info of deck.names.values()) {
           if (excludeBasics && isBasicLand(info.name)) continue;
           const have = ownedQuantity(info.name);
+          const proxied = isProxied(info.name);
+          const effectiveHave = proxied ? Math.max(have, info.quantity) : have;
           const row = {
             name: info.name,
             need: info.quantity,
             have,
-            short: Math.max(0, info.quantity - have),
+            short: Math.max(0, info.quantity - effectiveHave),
+            proxied,
           };
-          if (have >= info.quantity) owned.push(row);
+          if (effectiveHave >= info.quantity) owned.push(row);
           else missing.push(row);
 
           // Owned shared staple whose physical copy is not currently in this deck
-          if (have > 0) {
+          // (skip proxies — they cover the slot without a real sleeved copy)
+          if (!proxied && have > 0) {
             const sharedRow = sharedByKey.get(cardKey(info.name));
             if (sharedRow) {
               const assignId = getCardAssignment(cardKey(info.name));
@@ -3451,18 +3550,7 @@
           collectionState.has_collection || collectionState.override_count > 0
         );
         applyCollectionState(collectionState);
-        if (lastOwnership) {
-          const decks = gatherDecks().filter((d) => d.names.size > 0);
-          const excludeBasics = document.getElementById("excludeBasicsOwned").checked;
-          lastOwnership = computeOwnership(decks, { excludeBasics });
-          renderOwnership(lastOwnership);
-          if (lastAnalyze) {
-            const shared = findShared(decks, { excludeBasics: document.getElementById("excludeBasics").checked });
-            renderShared(shared, decks);
-            refreshExportText();
-          }
-          renderCollectionSearch();
-        }
+        refreshOwnershipViews();
         setStatus(`Marked “${name}” as owned (saved in this browser).`, "ok");
       } catch (err) {
         setStatus(String(err.message || err), "error");
@@ -3547,6 +3635,12 @@
           }
         }
         lines.push("");
+        const proxiedNames = Object.values(proxiedCards || {}).filter(Boolean).sort((a, b) => a.localeCompare(b));
+        if (proxiedNames.length) {
+          lines.push(`Proxied (${proxiedNames.length}):`);
+          for (const name of proxiedNames) lines.push(`- ${name}`);
+          lines.push("");
+        }
       }
 
       if (include.shared) {
@@ -3834,7 +3928,8 @@
       cardAssignments = {};
       landOwnedOverrides = {};
       landAllocations = {};
-      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS, LS_COMBOS, LS_LAND_OWNED, LS_LAND_ALLOC);
+      proxiedCards = {};
+      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS, LS_COMBOS, LS_LAND_OWNED, LS_LAND_ALLOC, LS_PROXIED);
       addDeck("Deck 1");
       addDeck("Deck 2");
       scheduleSaveLocal();

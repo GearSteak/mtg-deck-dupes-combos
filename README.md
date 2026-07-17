@@ -75,7 +75,7 @@ Notes:
 1. **CSV:** Export from ManaBox or Deckstats → **Upload CSV** (saved in this browser + server `data/` when running locally)
 2. **Deckstats live pull:** Needs a collection **number** (`…/collections/12345`), not plain `/collections`
 3. Analyze (or Quick assign) → **Owned / Missing** tab
-4. **Mark owned** saves overrides in this browser
+4. **Mark owned** or **Mark proxy** for cards you don’t need to buy
 5. **Shared & Locations** → pick which deck holds your **only copy** of each staple
 6. **Collection** tab → search the merged inventory (ManaBox + Deckstats + overrides)
 
