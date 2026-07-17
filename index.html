@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="MTG Decks" />
   <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="/assets/card-checker-logo.png" />
   <title>Deck Dupes & Combos — MTG</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -53,6 +54,23 @@
     header {
       margin-bottom: 1.75rem;
       animation: rise 0.55s ease-out both;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .brand-logo {
+      width: 96px;
+      height: 96px;
+      flex: 0 0 auto;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid var(--border);
     }
 
     header h1 {
@@ -283,6 +301,28 @@
       color: var(--accent);
       border-color: var(--accent-dim);
       background: rgba(62, 207, 175, 0.08);
+    }
+
+    .shared-filter-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .shared-filter-controls .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      cursor: pointer;
+      user-select: none;
+      min-height: 34px;
+    }
+
+    .shared-filter-controls .pill input {
+      accent-color: var(--accent);
+      margin: 0;
     }
 
     table {
@@ -584,6 +624,7 @@
     @media (max-width: 720px) {
       .mobile-quick { display: block; }
       .wrap { padding-bottom: 5.5rem; }
+      .shared-filter-controls .pill { min-height: 44px; }
       .assign-deck {
         min-height: 44px;
         font-size: 1rem;
@@ -930,12 +971,179 @@
 
     .panel-sub { display: none; }
     .panel-sub.active { display: block; }
+
+    body.modal-open { overflow: hidden; }
+
+    .tutorial-overlay[hidden] { display: none; }
+
+    .tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: rgba(4, 8, 13, 0.82);
+      backdrop-filter: blur(6px);
+    }
+
+    .tutorial-dialog {
+      position: relative;
+      width: min(680px, 100%);
+      max-height: min(90vh, 820px);
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+      padding: 1.35rem;
+    }
+
+    .tutorial-close {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+
+    .tutorial-head {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding-right: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .tutorial-logo {
+      width: 112px;
+      height: 112px;
+      object-fit: contain;
+      border-radius: 14px;
+      background: #fff;
+      flex: 0 0 auto;
+    }
+
+    .tutorial-head h2 {
+      margin: 0 0 0.2rem;
+      font-family: var(--display);
+      font-size: 2rem;
+      font-weight: 400;
+    }
+
+    .tutorial-head p,
+    .tutorial-dialog .sub { margin: 0; color: var(--muted); }
+
+    .tutorial-steps {
+      margin: 1rem 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: tutorial;
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .tutorial-steps li {
+      counter-increment: tutorial;
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 0.65rem;
+      align-items: start;
+      padding: 0.7rem;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+    }
+
+    .tutorial-steps li::before {
+      content: counter(tutorial);
+      display: grid;
+      place-items: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      color: #06241e;
+      background: var(--accent);
+      font-weight: 700;
+    }
+
+    .tutorial-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      align-items: center;
+      justify-content: flex-end;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .support-note {
+      flex: 1 1 260px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .foot {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .foot-logo {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .foot-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem 1rem;
+      margin-top: 0.45rem;
+      align-items: center;
+    }
+
+    .footer-link-button {
+      border: 0;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--link);
+      font-size: inherit;
+      font-weight: 400;
+    }
+
+    .footer-link-button:hover {
+      background: transparent;
+      border-color: transparent;
+      text-decoration: underline;
+    }
+
+    @media (max-width: 560px) {
+      .brand-logo { width: 72px; height: 72px; }
+      .tutorial-head { display: block; }
+      .tutorial-logo { width: 88px; height: 88px; margin-bottom: 0.65rem; }
+      .tutorial-actions { align-items: stretch; }
+      .tutorial-actions a,
+      .tutorial-actions button { text-align: center; width: 100%; }
+      .foot { grid-template-columns: 1fr; }
+      .foot-logo { width: 64px; height: 64px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <h1>Deck Dupes <em>&amp;</em> Combos</h1>
+      <div class="brand">
+        <img class="brand-logo" src="/assets/card-checker-logo.png" alt="Card Checker logo" />
+        <h1>Deck Dupes <em>&amp;</em> Combos</h1>
+      </div>
       <p class="no-print">Import decks and collection CSVs, track which deck holds each shared staple, find combos, and search what you own.</p>
       <p class="notice show no-print" style="margin-top:0.85rem;margin-bottom:0">
         Disclaimer: on free hosting the app may sleep when idle — the first load can take ~30–60 seconds to warm up. Deckstats lookups and combo searches can also take a bit.
@@ -1110,12 +1318,53 @@
     </div>
 
     <div class="foot no-print">
-      Combo data from
-      <a href="https://commanderspellbook.com/" target="_blank" rel="noopener">Commander Spellbook</a>.
-      Power checks via
-      <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>.
-      Accepts Moxfield / Arena / MTGO-style lists (<code>1 Card Name</code>, <code>1x Card</code>, section headers).
+      <img class="foot-logo" src="/assets/card-checker-logo.png" alt="" />
+      <div>
+        <strong>Card Checker</strong> — MTG combo, duplicate, collection, and deck-location helper.
+        Combo data from
+        <a href="https://commanderspellbook.com/" target="_blank" rel="noopener">Commander Spellbook</a>;
+        power checks via
+        <a href="https://edhpowerlevel.com/" target="_blank" rel="noopener">EDH Power Level</a>.
+        <div class="foot-links">
+          <a href="mailto:isaacl.balogh@gmail.com?subject=Card%20Checker%20Feedback">Send feedback</a>
+          <a href="https://ko-fi.com/gearsteak" target="_blank" rel="noopener">Support on Ko-fi</a>
+          <button type="button" class="footer-link-button" id="showTutorial">How to use Card Checker</button>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <div class="tutorial-overlay no-print" id="tutorialOverlay" hidden>
+    <section
+      class="tutorial-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tutorialTitle"
+      aria-describedby="tutorialIntro"
+    >
+      <button type="button" class="ghost tutorial-close" id="closeTutorial" aria-label="Close tutorial">×</button>
+      <div class="tutorial-head">
+        <img class="tutorial-logo" src="/assets/card-checker-logo.png" alt="Card Checker" />
+        <div>
+          <h2 id="tutorialTitle">Welcome to Card Checker</h2>
+          <p id="tutorialIntro">Here’s the quickest way to get your decks, collection, and shared cards organized.</p>
+        </div>
+      </div>
+
+      <ol class="tutorial-steps">
+        <li><div><strong>Import your collection and decks.</strong><br /><span class="sub">On Imports &amp; Decks, upload a ManaBox/Deckstats CSV, import public Deckstats decks, or paste lists manually.</span></div></li>
+        <li><div><strong>Analyze your lists.</strong><br /><span class="sub">Analyze finds shared cards, Commander Spellbook combos, and cards missing from your collection. Quick assign skips the slower combo lookup.</span></div></li>
+        <li><div><strong>Choose what to compare.</strong><br /><span class="sub">Shared &amp; Locations lets you select specific decks, then record which sleeved deck currently holds each physical staple.</span></div></li>
+        <li><div><strong>Get a deck ready to play.</strong><br /><span class="sub">Play a Deck tells you what to pull from bulk or another deck before game night.</span></div></li>
+        <li><div><strong>Check the other tabs.</strong><br /><span class="sub">Use Combos for known interactions, Owned / Missing for buy and sleeve lists, and Collection to search what you own.</span></div></li>
+      </ol>
+
+      <div class="tutorial-actions">
+        <span class="support-note">If Card Checker helps you, optional support keeps the project going.</span>
+        <a class="primary" href="https://ko-fi.com/gearsteak" target="_blank" rel="noopener">Support on Ko-fi</a>
+        <button type="button" class="primary" id="finishTutorial">Start using Card Checker</button>
+      </div>
+    </section>
   </div>
 
   <div class="mobile-quick no-print" id="mobileQuickBar">
@@ -1140,6 +1389,7 @@
     const LS_ASSIGNMENTS = "mtgddc-v1-assignments";
     const LS_SYNCED = "mtgddc-v1-synced";
     const LS_COMBOS = "mtgddc-v1-combos";
+    const TUTORIAL_COOKIE = "card_checker_tutorial_seen";
 
     let deckId = 0;
     let lastReportText = "";
@@ -1150,6 +1400,8 @@
     let collectionInBrowser = false;
     let cardAssignments = {}; // cardKey -> deckId string
     let lastSharedForAssign = [];
+    let sharedDeckSelection = null; // Set of selected deck ids; null means initialize to all
+    let knownSharedDeckIds = new Set();
     let saveLocalTimer = null;
     let pushSessionTimer = null;
     let lastOwnership = null; // { decks: [...], missingAll: [...] }
@@ -1172,6 +1424,42 @@
     const importActions = document.getElementById("importActions");
     const collectionStatus = document.getElementById("collectionStatus");
     const collectionFile = document.getElementById("collectionFile");
+
+    function readCookie(name) {
+      const prefix = `${encodeURIComponent(name)}=`;
+      const item = document.cookie
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(prefix));
+      return item ? decodeURIComponent(item.slice(prefix.length)) : "";
+    }
+
+    function writeCookie(name, value, maxAgeSeconds) {
+      const secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie =
+        `${encodeURIComponent(name)}=${encodeURIComponent(value)}; ` +
+        `Max-Age=${maxAgeSeconds}; Path=/; SameSite=Lax${secure}`;
+    }
+
+    function openTutorial() {
+      const overlay = document.getElementById("tutorialOverlay");
+      if (!overlay) return;
+      overlay.hidden = false;
+      document.body.classList.add("modal-open");
+      requestAnimationFrame(() => document.getElementById("finishTutorial")?.focus());
+    }
+
+    function closeTutorial({ remember = true } = {}) {
+      const overlay = document.getElementById("tutorialOverlay");
+      if (!overlay) return;
+      overlay.hidden = true;
+      document.body.classList.remove("modal-open");
+      if (remember) writeCookie(TUTORIAL_COOKIE, "1", 60 * 60 * 24 * 365);
+    }
+
+    function showTutorialIfNeeded() {
+      if (readCookie(TUTORIAL_COOKIE) !== "1") openTutorial();
+    }
 
     function readLocalJson(key) {
       try {
@@ -1377,11 +1665,12 @@
 
     function assignmentNeedsAction(row) {
       const owned = ownedQuantity(row.name);
-      const deckCount = (row.decks || []).length;
+      const assignmentDecks = row.assignmentDecks || row.decks || [];
+      const deckCount = assignmentDecks.length;
       if (deckCount < 2 || owned <= 0) return false;
       const k = cardKey(row.name);
       const assignId = getCardAssignment(k);
-      if (assignId && !row.decks.some((d) => String(d.id) === String(assignId))) return true;
+      if (assignId && !assignmentDecks.some((d) => String(d.id) === String(assignId))) return true;
       // One physical copy shared across lists — pick a home deck (not “buy another”).
       if (!assignId && owned === 1) return true;
       if (!assignId && owned > 0 && owned < deckCount) return true;
@@ -1844,13 +2133,13 @@
       const showAlmost = document.getElementById("showAlmost").checked;
       const shared = findShared(decks, { excludeBasics });
       lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
-      renderShared(shared, decks);
+      const displayedShared = renderShared(shared, decks) || [];
       renderOwnership(lastOwnership);
       renderPowerLevels(decks);
       renderPlayDeck();
       refreshAllDeckMeta();
       lastAnalyze = {
-        shared,
+        shared: displayedShared,
         decks,
         deckResults: lastDeckResults || [],
         showAlmost,
@@ -1870,13 +2159,13 @@
       if (!quiet) {
         const miss = lastOwnership?.missingAll?.length;
         setStatus(
-          `Ready — ${decks.length} deck${decks.length === 1 ? "" : "s"}, ${shared.length} shared` +
+          `Ready — ${decks.length} deck${decks.length === 1 ? "" : "s"}, ${displayedShared.length} shared in current selection` +
             (miss != null ? `, ${miss} missing` : "") +
             ".",
           "ok"
         );
       }
-      return { decks, shared };
+      return { decks, shared: displayedShared };
     }
 
     async function quickAssign() {
@@ -1951,7 +2240,7 @@
       const k = cardKey(row.name);
       const current = getCardAssignment(k);
       const opts = [`<option value="">Unassigned</option>`];
-      for (const d of row.decks) {
+      for (const d of (row.assignmentDecks || row.decks || [])) {
         const sel = String(d.id) === String(current) ? " selected" : "";
         opts.push(`<option value="${escapeAttr(String(d.id))}"${sel}>${escapeHtml(d.name)}</option>`);
       }
@@ -1974,13 +2263,89 @@
       });
     }
 
-    function renderShared(shared, decks) {
-      lastSharedForAssign = shared;
-      const noticeEl = document.getElementById("sharedAssignNotice");
+    function selectedDecksForShared(decks) {
+      const currentIds = new Set((decks || []).map((d) => String(d.id)));
+      if (sharedDeckSelection == null) {
+        sharedDeckSelection = new Set(currentIds);
+      } else {
+        // Drop removed ids; newly imported decks default to selected.
+        for (const id of [...sharedDeckSelection]) {
+          if (!currentIds.has(id)) sharedDeckSelection.delete(id);
+        }
+        for (const id of currentIds) {
+          if (!knownSharedDeckIds.has(id)) sharedDeckSelection.add(id);
+        }
+      }
+      knownSharedDeckIds = currentIds;
+      return (decks || []).filter((d) => sharedDeckSelection.has(String(d.id)));
+    }
+
+    function renderSharedDeckFilters(decks) {
       const filters = document.getElementById("sharedFilters");
-      filters.innerHTML = decks
-        .map((d) => `<span class="pill on">${escapeHtml(d.name)}</span>`)
-        .join("");
+      if (!filters) return;
+      filters.className = "shared-filter-controls";
+      filters.innerHTML = `
+        <button type="button" class="ghost" id="sharedSelectAll">All</button>
+        <button type="button" class="ghost" id="sharedSelectNone">None</button>
+        ${(decks || []).map((d) => {
+          const checked = sharedDeckSelection?.has(String(d.id));
+          return `<label class="pill${checked ? " on" : ""}">
+            <input type="checkbox" class="shared-deck-filter" value="${escapeAttr(String(d.id))}"${checked ? " checked" : ""} />
+            ${escapeHtml(d.name)}
+          </label>`;
+        }).join("")}
+      `;
+
+      const rerender = () => {
+        const allDecks = gatherDecks().filter((d) => d.names.size > 0);
+        renderShared(null, allDecks);
+        if (lastAnalyze) refreshExportText();
+      };
+      filters.querySelector("#sharedSelectAll")?.addEventListener("click", () => {
+        sharedDeckSelection = new Set((decks || []).map((d) => String(d.id)));
+        rerender();
+      });
+      filters.querySelector("#sharedSelectNone")?.addEventListener("click", () => {
+        sharedDeckSelection = new Set();
+        rerender();
+      });
+      filters.querySelectorAll(".shared-deck-filter").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) sharedDeckSelection.add(input.value);
+          else sharedDeckSelection.delete(input.value);
+          rerender();
+        });
+      });
+    }
+
+    function renderShared(_shared, decks) {
+      const noticeEl = document.getElementById("sharedAssignNotice");
+      const selectedDecks = selectedDecksForShared(decks);
+      renderSharedDeckFilters(decks);
+
+      if (selectedDecks.length < 2) {
+        lastSharedForAssign = [];
+        noticeEl.innerHTML = "";
+        setMainTabBadge("shared", null);
+        document.getElementById("sharedTable").innerHTML =
+          `<p class="empty">Select at least two decks above to compare shared cards.</p>`;
+        if (lastAnalyze) lastAnalyze.shared = [];
+        return [];
+      }
+
+      const shared = findShared(selectedDecks, {
+        excludeBasics: document.getElementById("excludeBasics").checked,
+      }).map((row) => ({
+        ...row,
+        assignmentDecks: decks
+          .filter((deck) => deck.names.has(cardKey(row.name)))
+          .map((deck) => {
+            const info = deck.names.get(cardKey(row.name));
+            return { id: deck.id, name: deck.name, quantity: info?.quantity || 1 };
+          }),
+      }));
+      lastSharedForAssign = shared;
+      if (lastAnalyze) lastAnalyze.shared = shared;
 
       const conflicts = countAssignmentConflicts(shared);
       setMainTabBadge("shared", shared.length ? (conflicts ? `${shared.length} (${conflicts}!)` : shared.length) : null);
@@ -1988,8 +2353,8 @@
       if (!shared.length) {
         noticeEl.innerHTML = "";
         document.getElementById("sharedTable").innerHTML =
-          `<p class="empty">No shared cards across these decks${document.getElementById("excludeBasics").checked ? " (basics ignored)" : ""}.</p>`;
-        return;
+          `<p class="empty">No shared cards across the ${selectedDecks.length} selected decks${document.getElementById("excludeBasics").checked ? " (basics ignored)" : ""}.</p>`;
+        return [];
       }
 
       if (conflicts) {
@@ -2021,7 +2386,7 @@
           : "";
         return `<tr class="${conflict ? "assign-conflict" : ""}">
           <td><strong>${escapeHtml(row.name)}</strong>${ownedNote}${homeNote}</td>
-          <td class="count">${row.decks.length}/${decks.length}</td>
+          <td class="count">${row.decks.length}/${selectedDecks.length}</td>
           <td class="hide-sm"><div class="deck-tags">${tags}</div></td>
           <td>${assignmentSelectHtml(row)}</td>
         </tr>`;
@@ -2041,6 +2406,7 @@
         </table>
       `;
       wireAssignmentSelects();
+      return shared;
     }
 
     function renderPlayDeck() {
@@ -3069,7 +3435,7 @@
       const showAlmost = document.getElementById("showAlmost").checked;
 
       const shared = findShared(decks, { excludeBasics });
-      renderShared(shared, decks);
+      const displayedShared = renderShared(shared, decks) || [];
       lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
       renderOwnership(lastOwnership);
       renderPowerLevels(decks);
@@ -3101,7 +3467,7 @@
       renderCombos(deckResults, showAlmost);
       renderPowerLevels(decks);
       refreshAllDeckMeta();
-      lastAnalyze = { shared, decks, deckResults, showAlmost };
+      lastAnalyze = { shared: displayedShared, decks, deckResults, showAlmost };
       refreshExportText();
       const comboCount = deckResults.reduce((n, r) => n + (r.combos?.included?.length || 0), 0);
       const missCount = lastOwnership?.missingAll?.length || 0;
@@ -3113,7 +3479,7 @@
         ? `, ${syncCount} in ManaBox but not Deckstats`
         : "";
       setStatus(
-        `Done — ${shared.length} shared card${shared.length === 1 ? "" : "s"}, ${comboCount} included combo${comboCount === 1 ? "" : "s"}${ownedNote}${syncNote}.`,
+        `Done — ${displayedShared.length} shared card${displayedShared.length === 1 ? "" : "s"} in current selection, ${comboCount} included combo${comboCount === 1 ? "" : "s"}${ownedNote}${syncNote}.`,
         "ok"
       );
       schedulePushSession();
@@ -3189,6 +3555,8 @@
       lastOwnership = null;
       lastDeckResults = null;
       lastSharedForAssign = [];
+      sharedDeckSelection = null;
+      knownSharedDeckIds = new Set();
       setMainTabBadge("shared", null);
       setMainTabBadge("combos", null);
       setMainTabBadge("owned", null);
@@ -3486,6 +3854,17 @@
       renderCollectionSearch();
       input.focus();
     });
+    document.getElementById("showTutorial").addEventListener("click", openTutorial);
+    document.getElementById("closeTutorial").addEventListener("click", () => closeTutorial());
+    document.getElementById("finishTutorial").addEventListener("click", () => closeTutorial());
+    document.getElementById("tutorialOverlay").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) closeTutorial();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !document.getElementById("tutorialOverlay").hidden) {
+        closeTutorial();
+      }
+    });
 
     async function initApp() {
       checkCors();
@@ -3546,6 +3925,7 @@
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") flushSaveLocal();
       });
+      showTutorialIfNeeded();
     }
 
     initApp();

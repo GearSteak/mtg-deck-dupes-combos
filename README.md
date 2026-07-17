@@ -12,7 +12,7 @@ Paste multiple Magic: The Gathering decklists (or import public Deckstats decks)
 | Tab | What it’s for |
 | --- | --- |
 | **Imports & Decks** | Upload CSVs, Deckstats collection/deck import, paste decklists, Quick assign, Analyze |
-| **Shared & Locations** | Shared staples, “your copy is in” selectors, EDH Power Level links |
+| **Shared & Locations** | Choose which decks to compare, view shared staples, and set “your copy is in” locations |
 | **Play a Deck** | Pick a deck to see which shared cards to pull from your other decks |
 | **Combos** | Commander Spellbook results (after Analyze) |
 | **Owned / Missing** | Cards you still need vs what’s in your collection |
@@ -56,7 +56,7 @@ Notes:
 1. **Imports & Decks** → upload ManaBox/Deckstats CSV (and/or pull Deckstats collection)
 2. Import Deckstats decks or paste lists
 3. Click **Analyze decks** (or **Quick assign** on phone to skip combo lookup)
-4. **Shared & Locations** → set which deck has each shared staple
+4. **Shared & Locations** → select the decks to compare, then set which deck has each shared staple
 5. **Play a Deck** → pick the deck you want to play to see which shared cards to pull from your other decks
 6. Check **Combos** / **Owned / Missing** as needed
 7. **Collection** → search any owned card by name
@@ -78,3 +78,10 @@ Notes:
 6. **Collection** tab → search the merged inventory (ManaBox + Deckstats + overrides)
 
 Private Deckstats collections can’t be pulled without login — use CSV export for those.
+
+## Help, feedback, and support
+
+- New visitors see a short tutorial; completion is remembered for one year in a browser cookie.
+- Reopen the tutorial anytime from **How to use Card Checker** in the footer.
+- Feedback: [isaacl.balogh@gmail.com](mailto:isaacl.balogh@gmail.com?subject=Card%20Checker%20Feedback)
+- Optional support: [Ko-fi](https://ko-fi.com/gearsteak)

@@ -1,10 +1,17 @@
 {
-  "name": "Deck Dupes & Combos",
-  "short_name": "MTG Decks",
+  "name": "Card Checker",
+  "short_name": "Card Checker",
   "description": "Track shared staples and which deck has each physical copy.",
   "start_url": "/#assign",
   "display": "standalone",
   "background_color": "#0e1218",
   "theme_color": "#3ecfaf",
-  "icons": []
+  "icons": [
+    {
+      "src": "/assets/card-checker-logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
