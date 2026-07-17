@@ -1195,13 +1195,33 @@
       saveLocalTimer = setTimeout(saveLocalNow, 400);
     }
 
+    function flushSaveLocal() {
+      clearTimeout(saveLocalTimer);
+      clearTimeout(pushSessionTimer);
+      saveLocalNow();
+    }
+
+    function countNonEmptyStoredDecks(decks) {
+      return (decks || []).filter((d) => String(d?.text || "").trim()).length;
+    }
+
     function saveDecksLocal() {
-      const decks = [...decksEl.querySelectorAll(".deck")].map((el) => ({
-        id: parseInt(el.dataset.id, 10),
-        name: el.querySelector(".deck-name").value,
-        text: el.querySelector(".deck-text").value,
-      }));
-      writeLocalJson(LS_DECKS, decks);
+      const decks = gatherDecksForStorage();
+      if (!writeLocalJson(LS_DECKS, decks)) {
+        // Collection CSV often fills quota — drop it and retry decks+assignments.
+        try {
+          localStorage.removeItem(LS_COLLECTION);
+          if (!writeLocalJson(LS_DECKS, decks)) {
+            setStatus("Could not save decks — browser storage is full.", "error");
+            return false;
+          }
+          setStatus("Decks saved. Collection was too large for browser storage; re-upload CSV if needed.", "ok");
+        } catch {
+          setStatus("Could not save decks — browser storage is full.", "error");
+          return false;
+        }
+      }
+      return true;
     }
 
     function saveCollectionLocal() {
@@ -1216,8 +1236,9 @@
 
     function saveLocalNow() {
       saveDecksLocal();
-      saveCollectionLocal();
       saveAssignmentsLocal();
+      // Collection last — it's the biggest and must not block deck saves.
+      saveCollectionLocal();
       schedulePushSession();
     }
 
@@ -1232,11 +1253,13 @@
     function schedulePushSession() {
       if (location.protocol === "file:") return;
       clearTimeout(pushSessionTimer);
-      pushSessionTimer = setTimeout(pushSessionToServer, 400);
+      pushSessionTimer = setTimeout(() => {
+        pushSessionToServer().catch(() => {});
+      }, 400);
     }
 
     async function pushSessionToServer() {
-      if (location.protocol === "file:") return;
+      if (location.protocol === "file:") return false;
       try {
         const decks = gatherDecksForStorage();
         const [aRes, dRes] = await Promise.all([
@@ -1253,10 +1276,14 @@
         ]);
         const a = await aRes.json();
         const d = await dRes.json();
+        if (!a.ok && a.error) throw new Error(a.error);
+        if (!d.ok && d.error) throw new Error(d.error);
         const ts = d.updated_at || a.updated_at || new Date().toISOString();
         writeLocalJson(LS_SYNCED, ts);
+        return true;
       } catch {
         // offline or server asleep — local copy still works
+        return false;
       }
     }
 
@@ -1283,21 +1310,26 @@
           }
         }
 
-        if (d.ok && Array.isArray(d.decks) && d.decks.length) {
-          const hadLocal = !!readLocalJson(LS_DECKS)?.length;
-          const localSynced = readLocalJson(LS_SYNCED);
-          const useServer = !hadLocal || (d.updated_at && localSynced && d.updated_at > localSynced);
-          if (useServer) {
-            decksEl.innerHTML = "";
-            deckId = 0;
-            for (const deck of d.decks) {
-              const id = parseInt(deck.id, 10) || 0;
-              deckId = Math.max(deckId, id);
-              addDeck(deck.name || "", deck.text || "", id);
-            }
-            saveDecksLocal();
-            changed = true;
+        const localDecks = readLocalJson(LS_DECKS) || [];
+        const localNonEmpty = countNonEmptyStoredDecks(localDecks);
+        const serverDecks = d.ok && Array.isArray(d.decks) ? d.decks : [];
+        const serverNonEmpty = countNonEmptyStoredDecks(serverDecks);
+
+        // Local-first: only adopt server decks when this browser has no real lists.
+        // (Prevents empty phone starters / stale server from wiping your PC decks.)
+        if (localNonEmpty === 0 && serverNonEmpty > 0) {
+          decksEl.innerHTML = "";
+          deckId = 0;
+          for (const deck of serverDecks) {
+            const id = parseInt(deck.id, 10) || 0;
+            deckId = Math.max(deckId, id);
+            addDeck(deck.name || "", deck.text || "", id);
           }
+          saveDecksLocal();
+          changed = true;
+        } else if (localNonEmpty > 0) {
+          // Re-upload after Render redeploy / sleep wipe so phone can pull later.
+          await pushSessionToServer();
         }
         return changed;
       } catch {
@@ -1383,6 +1415,10 @@
           const id = parseInt(d.id, 10) || 0;
           deckId = Math.max(deckId, id);
           addDeck(d.name || "", d.text || "", id);
+        }
+        const n = countNonEmptyStoredDecks(saved);
+        if (n) {
+          setStatus(`Restored ${n} decklist${n === 1 ? "" : "s"} from this browser.`, "ok");
         }
         return true;
       }
@@ -3151,8 +3187,8 @@
       }
       btn.disabled = false;
       if (ok) {
-        scheduleSaveLocal();
-        setStatus(`Imported ${ok} deck${ok === 1 ? "" : "s"} from Deckstats.`, "ok");
+        saveLocalNow();
+        setStatus(`Imported ${ok} deck${ok === 1 ? "" : "s"} from Deckstats (saved in this browser).`, "ok");
       }
     }
 
@@ -3286,6 +3322,12 @@
       } else if (["shared", "play", "combos", "owned", "collection", "imports"].includes(hash)) {
         switchMainTab(hash);
       }
+
+      window.addEventListener("pagehide", flushSaveLocal);
+      window.addEventListener("beforeunload", flushSaveLocal);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") flushSaveLocal();
+      });
     }
 
     initApp();
