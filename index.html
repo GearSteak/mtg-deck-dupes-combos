@@ -1139,6 +1139,7 @@
     const LS_COLLECTION = "mtgddc-v1-collection";
     const LS_ASSIGNMENTS = "mtgddc-v1-assignments";
     const LS_SYNCED = "mtgddc-v1-synced";
+    const LS_COMBOS = "mtgddc-v1-combos";
 
     let deckId = 0;
     let lastReportText = "";
@@ -1833,15 +1834,14 @@
       printOpts.classList.add("show");
     }
 
-    async function quickAssign() {
+    /** Fill Shared / Owned / Play / Power from current deck editors (no Spellbook wait). */
+    function hydrateResultsFromDecks({ quiet = false } = {}) {
       const decks = gatherDecks().filter((d) => d.names.size > 0);
-      if (!decks.length) {
-        setStatus("Add decklists on the Imports tab first (or sync from your PC), then try again.", "error");
-        switchMainTab("imports");
-        return;
-      }
+      if (!decks.length) return null;
+
       const excludeBasics = document.getElementById("excludeBasics").checked;
       const excludeBasicsOwned = document.getElementById("excludeBasicsOwned").checked;
+      const showAlmost = document.getElementById("showAlmost").checked;
       const shared = findShared(decks, { excludeBasics });
       lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
       renderShared(shared, decks);
@@ -1853,12 +1853,41 @@
         shared,
         decks,
         deckResults: lastDeckResults || [],
-        showAlmost: document.getElementById("showAlmost").checked,
+        showAlmost,
       };
+      if (lastDeckResults?.length) {
+        renderCombos(lastDeckResults, lastShowAlmost || showAlmost);
+      } else {
+        const comboRoot = document.getElementById("comboResults");
+        if (comboRoot) {
+          comboRoot.innerHTML =
+            `<p class="empty">Combos load after Analyze (runs automatically after restore, or click Analyze decks).</p>`;
+        }
+        setMainTabBadge("combos", null);
+      }
       refreshExportText();
       showResultsChrome();
+      if (!quiet) {
+        const miss = lastOwnership?.missingAll?.length;
+        setStatus(
+          `Ready — ${decks.length} deck${decks.length === 1 ? "" : "s"}, ${shared.length} shared` +
+            (miss != null ? `, ${miss} missing` : "") +
+            ".",
+          "ok"
+        );
+      }
+      return { decks, shared };
+    }
+
+    async function quickAssign() {
+      const result = hydrateResultsFromDecks({ quiet: true });
+      if (!result) {
+        setStatus("Add decklists on the Imports tab first (or sync from your PC), then try again.", "error");
+        switchMainTab("imports");
+        return;
+      }
       switchMainTab("shared");
-      const conflicts = countAssignmentConflicts(shared);
+      const conflicts = countAssignmentConflicts(result.shared);
       setStatus(
         conflicts
           ? `${conflicts} staple${conflicts === 1 ? "" : "s"} need a deck — pick from the dropdown. Saved to this browser and server.`
@@ -3025,13 +3054,13 @@
       window.print();
     }
 
-    async function analyze() {
+    async function analyze({ background = false } = {}) {
       const decks = gatherDecks().filter((d) => d.names.size > 0);
       if (decks.length < 1) {
         setStatus("Paste at least one decklist.", "error");
         resultsEl.classList.remove("show");
         clearExport();
-        switchMainTab("imports");
+        if (!background) switchMainTab("imports");
         return;
       }
 
@@ -3046,7 +3075,7 @@
       renderPowerLevels(decks);
       renderPlayDeck();
       showResultsChrome();
-      switchMainTab("shared");
+      if (!background) switchMainTab("shared");
 
       const btn = document.getElementById("analyze");
       btn.disabled = true;
@@ -3067,6 +3096,8 @@
       }
 
       lastDeckResults = deckResults;
+      lastShowAlmost = showAlmost;
+      saveCombosLocal(decks, deckResults, showAlmost);
       renderCombos(deckResults, showAlmost);
       renderPowerLevels(decks);
       refreshAllDeckMeta();
@@ -3089,6 +3120,48 @@
       btn.disabled = false;
     }
 
+    function decksFingerprint(decks) {
+      return (decks || [])
+        .map((d) => `${d.id}|${d.name}|${String(d.text || "").length}`)
+        .join("::");
+    }
+
+    function saveCombosLocal(decks, deckResults, showAlmost) {
+      // Store a slim copy: deck id/name + combo payloads (not live DOM deck refs)
+      const payload = {
+        fingerprint: decksFingerprint(decks),
+        showAlmost: !!showAlmost,
+        results: (deckResults || []).map((r) => ({
+          deckId: r.deck?.id,
+          deckName: r.deck?.name,
+          combos: r.combos,
+          error: r.error || null,
+        })),
+      };
+      writeLocalJson(LS_COMBOS, payload);
+    }
+
+    function restoreCombosFromLocal(decks) {
+      const saved = readLocalJson(LS_COMBOS);
+      if (!saved?.results?.length || !decks?.length) return false;
+      if (saved.fingerprint !== decksFingerprint(decks)) return false;
+      const byId = new Map(decks.map((d) => [String(d.id), d]));
+      const deckResults = [];
+      for (const row of saved.results) {
+        const deck = byId.get(String(row.deckId)) || decks.find((d) => d.name === row.deckName);
+        if (!deck) return false;
+        deckResults.push({
+          deck,
+          combos: row.combos || null,
+          error: row.error || null,
+        });
+      }
+      lastDeckResults = deckResults;
+      lastShowAlmost = !!saved.showAlmost;
+      renderCombos(deckResults, lastShowAlmost);
+      return true;
+    }
+
     function checkCors() {
       if (location.protocol === "file:") {
         document.getElementById("corsNotice").classList.add("show");
@@ -3108,7 +3181,7 @@
       decksEl.innerHTML = "";
       deckId = 0;
       cardAssignments = {};
-      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS);
+      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS, LS_COMBOS);
       addDeck("Deck 1");
       addDeck("Deck 2");
       scheduleSaveLocal();
@@ -3431,13 +3504,40 @@
       dedupeDecksByName({ silent: true });
       refreshImportsBadge();
       renderCollectionSearch();
+
+      const hydrated = hydrateResultsFromDecks({ quiet: true });
+      if (hydrated) {
+        const hadCombos = restoreCombosFromLocal(hydrated.decks);
+        if (hadCombos) {
+          lastAnalyze = {
+            ...lastAnalyze,
+            deckResults: lastDeckResults,
+            showAlmost: lastShowAlmost,
+          };
+          refreshExportText();
+          setStatus(
+            `Restored ${hydrated.decks.length} decks with shared/owned/combos — open those tabs anytime.`,
+            "ok"
+          );
+        } else {
+          setStatus(
+            `Restored ${hydrated.decks.length} decks — Shared / Owned / Play are ready. Looking up combos…`,
+            "ok"
+          );
+          analyze({ background: true }).catch((err) => {
+            setStatus(`Combo lookup failed: ${err.message || err}`, "error");
+          });
+        }
+      }
+
       const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
       if (hash === "assign" || hash === "mobile") {
         await quickAssign();
       } else if (["shared", "play", "combos", "owned", "collection", "imports"].includes(hash)) {
         switchMainTab(hash);
+      } else if (hydrated) {
+        switchMainTab("shared");
       } else {
-        // Default: show Imports so restored decks are visible
         switchMainTab("imports");
       }
 
