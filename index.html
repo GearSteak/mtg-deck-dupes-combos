@@ -921,6 +921,36 @@
       color: var(--text);
     }
 
+    .land-qty {
+      width: 4.2rem;
+      font-family: var(--font);
+      font-size: 0.9rem;
+      text-align: center;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.3rem 0.35rem;
+    }
+
+    .land-qty:focus {
+      outline: 2px solid var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    .land-short { color: var(--danger); font-weight: 700; }
+    .land-ok { color: var(--accent); font-weight: 600; }
+    .land-warn { color: var(--warn); font-weight: 600; }
+
+    .lands-scroll {
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+
+    .lands-scroll table {
+      min-width: 640px;
+    }
+
     .subtabs {
       display: flex;
       flex-wrap: wrap;
@@ -1156,6 +1186,7 @@
     <div class="app-tabs no-print" id="mainTabs" role="tablist">
       <button type="button" class="tab active" data-main-tab="imports" role="tab">Imports &amp; Decks</button>
       <button type="button" class="tab" data-main-tab="shared" role="tab">Shared &amp; Locations</button>
+      <button type="button" class="tab" data-main-tab="lands" role="tab">Lands</button>
       <button type="button" class="tab" data-main-tab="play" role="tab">Play a Deck</button>
       <button type="button" class="tab" data-main-tab="combos" role="tab">Combos</button>
       <button type="button" class="tab" data-main-tab="owned" role="tab">Owned / Missing</button>
@@ -1270,6 +1301,22 @@
       </div>
     </div>
 
+    <div class="tab-panel" data-main-panel="lands" id="panelLands">
+      <p class="sub">
+        Basics are shared by <strong>count</strong>, not as one-copy staples.
+        Set how many you own, optionally where they’re sleeved now, and use
+        <strong>Play a Deck</strong> to see how many to pull from the pool.
+      </p>
+      <div class="collection-search-row no-print">
+        <button type="button" class="ghost" id="resetLandOwned">Reset owned from collection</button>
+        <button type="button" class="ghost" id="clearLandAlloc">Clear sleeved counts</button>
+      </div>
+      <p class="deck-meta" id="landsMeta"></p>
+      <div id="landsResults">
+        <p class="empty">Import decks on the Imports tab, then open Lands to track basic land pools.</p>
+      </div>
+    </div>
+
     <div class="tab-panel" data-main-panel="play" id="panelPlay">
       <p class="sub">
         Getting a deck ready to play? Pick it below to see which shared staples to pull
@@ -1351,8 +1398,8 @@
       <ol class="tutorial-steps">
         <li><div><strong>Import your collection and decks.</strong><br /><span class="sub">On Imports &amp; Decks, upload a ManaBox/Deckstats CSV, import public Deckstats decks, or paste lists manually.</span></div></li>
         <li><div><strong>Analyze your lists.</strong><br /><span class="sub">Analyze finds shared cards, Commander Spellbook combos, and cards missing from your collection. Quick assign skips the slower combo lookup.</span></div></li>
-        <li><div><strong>Choose what to compare.</strong><br /><span class="sub">Shared &amp; Locations lets you select specific decks, then record which sleeved deck currently holds each physical staple.</span></div></li>
-        <li><div><strong>Get a deck ready to play.</strong><br /><span class="sub">Play a Deck tells you what to pull from bulk or another deck before game night.</span></div></li>
+        <li><div><strong>Choose what to compare.</strong><br /><span class="sub">Shared &amp; Locations lets you select specific decks, then record which sleeved deck currently holds each physical staple. Use the Lands tab for basic land pools (multi-copy).</span></div></li>
+        <li><div><strong>Get a deck ready to play.</strong><br /><span class="sub">Play a Deck tells you what staples and basics to pull from bulk or another deck before game night.</span></div></li>
         <li><div><strong>Check the other tabs.</strong><br /><span class="sub">Use Combos for known interactions, Owned / Missing for buy and sleeve lists, and Collection to search what you own.</span></div></li>
       </ol>
 
@@ -1386,6 +1433,8 @@
     const LS_ASSIGNMENTS = "mtgddc-v1-assignments";
     const LS_SYNCED = "mtgddc-v1-synced";
     const LS_COMBOS = "mtgddc-v1-combos";
+    const LS_LAND_OWNED = "mtgddc-v1-land-owned";
+    const LS_LAND_ALLOC = "mtgddc-v1-land-alloc";
     const TUTORIAL_COOKIE = "card_checker_tutorial_seen";
 
     let deckId = 0;
@@ -1396,6 +1445,8 @@
     let collectionState = null; // full lookup payload
     let collectionInBrowser = false;
     let cardAssignments = {}; // cardKey -> deckId string
+    let landOwnedOverrides = {}; // cardKey -> number (manual owned totals for basics)
+    let landAllocations = {}; // cardKey -> { [deckId]: qty }
     let lastSharedForAssign = [];
     let sharedDeckSelection = null; // Set of selected deck ids; null means initialize to all
     let knownSharedDeckIds = new Set();
@@ -1524,6 +1575,8 @@
     function saveLocalNow() {
       saveDecksLocal();
       saveAssignmentsLocal();
+      writeLocalJson(LS_LAND_OWNED, landOwnedOverrides);
+      writeLocalJson(LS_LAND_ALLOC, landAllocations);
       // Collection last — it's the biggest and must not block deck saves.
       saveCollectionLocal();
       schedulePushSession();
@@ -1690,10 +1743,13 @@
       updateCollectionStatus();
       saveCollectionLocal();
       renderCollectionSearch();
+      renderLands();
     }
 
     function restoreAssignmentsFromLocal() {
       cardAssignments = readLocalJson(LS_ASSIGNMENTS) || {};
+      landOwnedOverrides = readLocalJson(LS_LAND_OWNED) || {};
+      landAllocations = readLocalJson(LS_LAND_ALLOC) || {};
     }
 
     function restoreDecksFromLocal() {
@@ -2013,6 +2069,182 @@
       return BASIC_LANDS.has(cardKey(name));
     }
 
+    function getLandOwned(name) {
+      const key = cardKey(name);
+      if (Object.prototype.hasOwnProperty.call(landOwnedOverrides, key)) {
+        const n = parseInt(landOwnedOverrides[key], 10);
+        return Number.isFinite(n) ? Math.max(0, n) : 0;
+      }
+      return ownedQuantity(name);
+    }
+
+    function setLandOwned(name, qty) {
+      const key = cardKey(name);
+      const n = Math.max(0, parseInt(qty, 10) || 0);
+      landOwnedOverrides[key] = n;
+      scheduleSaveLocal();
+    }
+
+    function getLandAllocated(name, deckId) {
+      const key = cardKey(name);
+      const map = landAllocations[key] || {};
+      const n = parseInt(map[String(deckId)], 10);
+      return Number.isFinite(n) ? Math.max(0, n) : 0;
+    }
+
+    function setLandAllocated(name, deckId, qty) {
+      const key = cardKey(name);
+      if (!landAllocations[key]) landAllocations[key] = {};
+      const n = Math.max(0, parseInt(qty, 10) || 0);
+      if (n <= 0) delete landAllocations[key][String(deckId)];
+      else landAllocations[key][String(deckId)] = n;
+      if (!Object.keys(landAllocations[key]).length) delete landAllocations[key];
+      scheduleSaveLocal();
+    }
+
+    function landAllocatedTotal(name) {
+      const key = cardKey(name);
+      const map = landAllocations[key] || {};
+      return Object.values(map).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+    }
+
+    /** Basics used by any of the given decks, with per-deck needs. */
+    function gatherBasicLandRows(decks) {
+      const map = new Map();
+      for (const deck of decks || []) {
+        for (const info of deck.names.values()) {
+          if (!isBasicLand(info.name)) continue;
+          const key = cardKey(info.name);
+          if (!map.has(key)) {
+            map.set(key, {
+              key,
+              name: info.name,
+              byDeck: new Map(),
+              peak: 0,
+              sumNeed: 0,
+            });
+          }
+          const row = map.get(key);
+          row.byDeck.set(String(deck.id), info.quantity);
+          row.peak = Math.max(row.peak, info.quantity);
+          row.sumNeed += info.quantity;
+        }
+      }
+      return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function renderLands() {
+      const root = document.getElementById("landsResults");
+      const meta = document.getElementById("landsMeta");
+      if (!root || !meta) return;
+
+      const decks = gatherDecks().filter((d) => d.names.size > 0);
+      if (!decks.length) {
+        setMainTabBadge("lands", null);
+        meta.textContent = "";
+        root.innerHTML = `<p class="empty">Import decks on the Imports tab, then open Lands to track basic land pools.</p>`;
+        return;
+      }
+
+      const rows = gatherBasicLandRows(decks);
+      setMainTabBadge("lands", rows.length || null);
+      if (!rows.length) {
+        meta.textContent = `${decks.length} decks loaded — no basic lands found in the lists.`;
+        root.innerHTML = `<p class="empty">No basic lands in these decklists.</p>`;
+        return;
+      }
+
+      let shortPeak = 0;
+      let shortAll = 0;
+      for (const row of rows) {
+        const owned = getLandOwned(row.name);
+        if (owned < row.peak) shortPeak += 1;
+        if (owned < row.sumNeed) shortAll += 1;
+      }
+      meta.textContent =
+        `${rows.length} basic land type${rows.length === 1 ? "" : "s"} across ${decks.length} decks` +
+        (shortPeak ? ` · ${shortPeak} short of peak deck need` : " · enough for any single deck’s peak") +
+        (shortAll ? ` · ${shortAll} can’t fully sleeve every deck at once` : "");
+
+      const headDecks = decks
+        .map((d) => `<th title="List need / currently sleeved">${escapeHtml(d.name)}<br /><span style="font-weight:500;text-transform:none;letter-spacing:0">need / in</span></th>`)
+        .join("");
+
+      const body = rows.map((row) => {
+        const owned = getLandOwned(row.name);
+        const allocated = landAllocatedTotal(row.name);
+        const bulk = Math.max(0, owned - allocated);
+        const peakClass = owned < row.peak ? "land-short" : "land-ok";
+        const allClass = owned < row.sumNeed ? "land-warn" : "land-ok";
+        const cells = decks.map((d) => {
+          const need = row.byDeck.get(String(d.id)) || 0;
+          const inn = getLandAllocated(row.name, d.id);
+          return `<td>
+            <span class="count">${need || "—"}</span>
+            /
+            <input type="number" min="0" class="land-qty land-alloc" data-land="${escapeAttr(row.key)}" data-deck-id="${escapeAttr(String(d.id))}" value="${inn}" aria-label="${escapeAttr(row.name)} currently in ${escapeAttr(d.name)}" />
+          </td>`;
+        }).join("");
+        return `<tr>
+          <td><strong>${escapeHtml(row.name)}</strong>
+            <div class="deck-meta">bulk free ≈ ${bulk}</div>
+          </td>
+          <td>
+            <input type="number" min="0" class="land-qty land-owned" data-land="${escapeAttr(row.key)}" value="${owned}" aria-label="Owned ${escapeAttr(row.name)}" />
+          </td>
+          ${cells}
+          <td class="${peakClass}">${row.peak}</td>
+          <td class="${allClass}">${row.sumNeed}</td>
+        </tr>`;
+      }).join("");
+
+      root.innerHTML = `
+        <div class="lands-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Basic</th>
+                <th>Owned</th>
+                ${headDecks}
+                <th>Peak need</th>
+                <th>All decks</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+        <p class="deck-meta" style="margin-top:0.75rem">
+          <strong>Owned</strong> = your shared pool (from collection, or edit). 
+          <strong>need / in</strong> = copies in the list vs how many you’ve marked sleeved in that deck.
+          Peak need = the most any one deck wants. All decks = if every list were fully sleeved at once.
+        </p>
+      `;
+
+      root.querySelectorAll(".land-owned").forEach((input) => {
+        input.addEventListener("change", () => {
+          const key = input.getAttribute("data-land");
+          landOwnedOverrides[key] = Math.max(0, parseInt(input.value, 10) || 0);
+          scheduleSaveLocal();
+          renderLands();
+          renderPlayDeck();
+        });
+      });
+      root.querySelectorAll(".land-alloc").forEach((input) => {
+        input.addEventListener("change", () => {
+          const key = input.getAttribute("data-land");
+          const deckId = input.getAttribute("data-deck-id");
+          if (!landAllocations[key]) landAllocations[key] = {};
+          const n = Math.max(0, parseInt(input.value, 10) || 0);
+          if (n <= 0) delete landAllocations[key][deckId];
+          else landAllocations[key][deckId] = n;
+          if (!Object.keys(landAllocations[key]).length) delete landAllocations[key];
+          scheduleSaveLocal();
+          renderLands();
+          renderPlayDeck();
+        });
+      });
+    }
+
     function gatherDecks() {
       return [...decksEl.querySelectorAll(".deck")].map((el, i) => {
         const id = parseInt(el.dataset.id, 10);
@@ -2101,6 +2333,7 @@
       panels.forEach((p) => p.classList.toggle("active", p.getAttribute("data-main-panel") === tabId));
       if (tabId === "collection") renderCollectionSearch();
       if (tabId === "play") renderPlayDeck();
+      if (tabId === "lands") renderLands();
       try {
         history.replaceState(null, "", tabId === "imports" ? location.pathname : `#${tabId}`);
       } catch {
@@ -2134,6 +2367,7 @@
       renderOwnership(lastOwnership);
       renderPowerLevels(decks);
       renderPlayDeck();
+      renderLands();
       refreshAllDeckMeta();
       lastAnalyze = {
         shared: displayedShared,
@@ -2457,7 +2691,6 @@
       }
 
       const totalPull = [...pullFrom.values()].reduce((n, g) => n + g.cards.length, 0) + fromBulk.length;
-      setMainTabBadge("play", totalPull || null);
 
       const groupCount = pullFrom.size + (fromBulk.length ? 1 : 0);
       const parts = [];
@@ -2506,13 +2739,67 @@
           </div>`);
       }
 
-      if (!totalPull && !needAssign.length) {
+      // Basics: quantity pool, not single-copy staples
+      const basicRows = [];
+      let basicsToPull = 0;
+      for (const info of selected.names.values()) {
+        if (!isBasicLand(info.name)) continue;
+        const need = info.quantity;
+        const inn = getLandAllocated(info.name, selected.id);
+        const pull = Math.max(0, need - inn);
+        const owned = getLandOwned(info.name);
+        basicsToPull += pull;
+        basicRows.push({ name: info.name, need, inn, pull, owned });
+      }
+      basicRows.sort((a, b) => a.name.localeCompare(b.name));
+
+      if (basicRows.length) {
+        parts.push(`
+          <div class="pull-group">
+            <h4>Basics for this deck <span class="count">${basicRows.reduce((n, r) => n + r.need, 0)}</span></h4>
+            <p class="sub" style="margin:0 0 0.55rem">
+              Shared land pool — pull what’s missing from bulk / other decks.
+              Track sleeved counts on the <strong>Lands</strong> tab.
+            </p>
+            <table>
+              <thead><tr><th>Land</th><th>Need</th><th>In this deck</th><th>Pull</th><th>Own (pool)</th></tr></thead>
+              <tbody>
+                ${basicRows.map((r) => `
+                  <tr>
+                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td class="count">${r.need}</td>
+                    <td>${r.inn}</td>
+                    <td class="${r.pull ? "land-warn" : "land-ok"}">${r.pull || "—"}</td>
+                    <td>${r.owned}${r.owned < r.need ? ' <span class="land-short">(short)</span>' : ""}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+            <p style="margin:0.75rem 0 0">
+              <button type="button" class="ghost" id="markBasicsSleeved">
+                Mark these basics as sleeved in ${escapeHtml(selected.name)}
+              </button>
+            </p>
+          </div>`);
+      }
+
+      if (!totalPull && !needAssign.length && !basicsToPull) {
         parts.push(
           `<p class="empty">Nothing to move — grab <strong>${escapeHtml(selected.name)}</strong> and go.</p>`
         );
       }
 
+      setMainTabBadge("play", (totalPull + basicsToPull) || null);
       root.innerHTML = parts.join("");
+
+      document.getElementById("markBasicsSleeved")?.addEventListener("click", () => {
+        for (const r of basicRows) {
+          setLandAllocated(r.name, selected.id, r.need);
+        }
+        saveLocalNow();
+        renderLands();
+        renderPlayDeck();
+        setStatus(`Marked basics as sleeved in ${selected.name}.`, "ok");
+      });
     }
 
     function renderComboCard(v, almost = false) {
@@ -3437,6 +3724,7 @@
       renderOwnership(lastOwnership);
       renderPowerLevels(decks);
       renderPlayDeck();
+      renderLands();
       showResultsChrome();
       if (!background) switchMainTab("shared");
 
@@ -3544,7 +3832,9 @@
       decksEl.innerHTML = "";
       deckId = 0;
       cardAssignments = {};
-      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS, LS_COMBOS);
+      landOwnedOverrides = {};
+      landAllocations = {};
+      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS, LS_COMBOS, LS_LAND_OWNED, LS_LAND_ALLOC);
       addDeck("Deck 1");
       addDeck("Deck 2");
       scheduleSaveLocal();
@@ -3842,6 +4132,21 @@
     document.getElementById("playDeckSelect").addEventListener("change", () => {
       renderPlayDeck();
     });
+    document.getElementById("resetLandOwned").addEventListener("click", () => {
+      landOwnedOverrides = {};
+      scheduleSaveLocal();
+      renderLands();
+      renderPlayDeck();
+      setStatus("Basic land owned counts reset from your collection.", "ok");
+    });
+    document.getElementById("clearLandAlloc").addEventListener("click", () => {
+      if (!confirm("Clear all “currently sleeved” basic land counts?")) return;
+      landAllocations = {};
+      scheduleSaveLocal();
+      renderLands();
+      renderPlayDeck();
+      setStatus("Cleared sleeved basic land counts.", "ok");
+    });
     document.getElementById("collectionSearch").addEventListener("input", () => {
       renderCollectionSearch();
     });
@@ -3909,7 +4214,7 @@
       const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
       if (hash === "assign" || hash === "mobile") {
         await quickAssign();
-      } else if (["shared", "play", "combos", "owned", "collection", "imports"].includes(hash)) {
+      } else if (["shared", "lands", "play", "combos", "owned", "collection", "imports"].includes(hash)) {
         switchMainTab(hash);
       } else if (hydrated) {
         switchMainTab("shared");
