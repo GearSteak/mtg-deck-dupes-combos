@@ -13,6 +13,7 @@ Paste multiple Magic: The Gathering decklists (or import public Deckstats decks)
 | --- | --- |
 | **Imports & Decks** | Upload CSVs, Deckstats collection/deck import, paste decklists, Quick assign, Analyze |
 | **Shared & Locations** | Shared staples, “your copy is in” selectors, EDH Power Level links |
+| **Play a Deck** | Pick a deck to see which shared cards to pull from your other decks |
 | **Combos** | Commander Spellbook results (after Analyze) |
 | **Owned / Missing** | Cards you still need vs what’s in your collection |
 | **Collection** | Search your imported collection by card name |
@@ -56,8 +57,9 @@ Notes:
 2. Import Deckstats decks or paste lists
 3. Click **Analyze decks** (or **Quick assign** on phone to skip combo lookup)
 4. **Shared & Locations** → set which deck has each shared staple
-5. Check **Combos** / **Owned / Missing** as needed
-6. **Collection** → search any owned card by name
+5. **Play a Deck** → pick the deck you want to play to see which shared cards to pull from your other decks
+6. Check **Combos** / **Owned / Missing** as needed
+7. **Collection** → search any owned card by name
 
 ## Deckstats import
 

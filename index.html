@@ -847,6 +847,39 @@
       margin: 0 0 0.35rem;
     }
 
+    .pull-group {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .pull-group h4 {
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .pull-group h4 .count {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #06241e;
+      background: var(--accent);
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+    }
+
+    .play-summary {
+      margin: 0 0 1.1rem;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
     .subtabs {
       display: flex;
       flex-wrap: wrap;
@@ -918,6 +951,7 @@
     <div class="app-tabs no-print" id="mainTabs" role="tablist">
       <button type="button" class="tab active" data-main-tab="imports" role="tab">Imports &amp; Decks</button>
       <button type="button" class="tab" data-main-tab="shared" role="tab">Shared &amp; Locations</button>
+      <button type="button" class="tab" data-main-tab="play" role="tab">Play a Deck</button>
       <button type="button" class="tab" data-main-tab="combos" role="tab">Combos</button>
       <button type="button" class="tab" data-main-tab="owned" role="tab">Owned / Missing</button>
       <button type="button" class="tab" data-main-tab="collection" role="tab">Collection</button>
@@ -1030,6 +1064,20 @@
       </div>
     </div>
 
+    <div class="tab-panel" data-main-panel="play" id="panelPlay">
+      <p class="sub">
+        Getting a deck ready to play? Pick it below to see which shared staples to pull
+        from your other decks (based on where each single copy currently lives).
+      </p>
+      <div class="collection-search-row no-print">
+        <label for="playDeckSelect" class="hint" style="align-self:center">Play</label>
+        <select id="playDeckSelect" class="assign-deck" style="max-width:none;flex:1;min-width:200px" aria-label="Deck to assemble"></select>
+      </div>
+      <div id="playResults">
+        <p class="empty">Import decks on the Imports tab, then choose a deck here to see which cards to pull.</p>
+      </div>
+    </div>
+
     <div class="tab-panel" data-main-panel="combos" id="panelCombos">
       <p class="sub">Known combos fully present in each list, via Commander Spellbook.</p>
       <div class="subtabs no-print" id="comboSubtabs"></div>
@@ -1039,7 +1087,7 @@
     </div>
 
     <div class="tab-panel" data-main-panel="owned" id="panelOwned">
-      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” overrides).</p>
+      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” overrides). Per deck also lists shared cards you own that are still in bulk or another sleeved deck.</p>
       <p class="deck-meta" id="ownedBrowserNote"></p>
       <div id="ownedSyncNotice"></div>
       <div class="subtabs no-print" id="ownedSubtabs"></div>
@@ -1632,6 +1680,7 @@
       tabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-main-tab") === tabId));
       panels.forEach((p) => p.classList.toggle("active", p.getAttribute("data-main-panel") === tabId));
       if (tabId === "collection") renderCollectionSearch();
+      if (tabId === "play") renderPlayDeck();
       try {
         history.replaceState(null, "", tabId === "imports" ? location.pathname : `#${tabId}`);
       } catch {
@@ -1665,6 +1714,7 @@
       renderShared(shared, decks);
       renderOwnership(lastOwnership);
       renderPowerLevels(decks);
+      renderPlayDeck();
       refreshAllDeckMeta();
       lastAnalyze = {
         shared,
@@ -1756,6 +1806,7 @@
             excludeBasics: document.getElementById("excludeBasics").checked,
           }), decks);
           refreshAllDeckMeta();
+          renderPlayDeck();
           if (lastAnalyze) refreshExportText();
         });
       });
@@ -1828,6 +1879,115 @@
         </table>
       `;
       wireAssignmentSelects();
+    }
+
+    function renderPlayDeck() {
+      const root = document.getElementById("playResults");
+      const select = document.getElementById("playDeckSelect");
+      if (!root || !select) return;
+
+      const decks = gatherDecks().filter((d) => d.names.size > 0);
+      if (!decks.length) {
+        select.innerHTML = "";
+        select.disabled = true;
+        setMainTabBadge("play", null);
+        root.innerHTML = `<p class="empty">Import decks on the Imports tab, then choose a deck here to see which cards to pull.</p>`;
+        return;
+      }
+
+      select.disabled = false;
+      const prev = select.value;
+      select.innerHTML = decks
+        .map((d) => `<option value="${escapeAttr(String(d.id))}">${escapeHtml(d.name)}</option>`)
+        .join("");
+      if (decks.some((d) => String(d.id) === String(prev))) select.value = prev;
+      const selected = decks.find((d) => String(d.id) === String(select.value)) || decks[0];
+
+      const excludeBasics = document.getElementById("excludeBasics").checked;
+      const shared = findShared(decks, { excludeBasics });
+      const sharedByKey = new Map(shared.map((r) => [cardKey(r.name), r]));
+
+      const pullFrom = new Map(); // sourceDeckId -> { name, cards: [] }
+      const fromBulk = [];
+      const needAssign = [];
+      let alreadyHere = 0;
+
+      for (const info of selected.names.values()) {
+        const key = cardKey(info.name);
+        const row = sharedByKey.get(key);
+        if (!row) continue; // not a shared staple; assume you have a dedicated copy
+        const assignId = getCardAssignment(key);
+        if (assignId && String(assignId) === String(selected.id)) {
+          alreadyHere++;
+        } else if (assignId) {
+          const srcName = deckNameById(assignId, decks);
+          if (!pullFrom.has(assignId)) pullFrom.set(assignId, { name: srcName, cards: [] });
+          pullFrom.get(assignId).cards.push(info.name);
+        } else if (ownedQuantity(info.name) > 0) {
+          // Owned but not sleeved in any tracked deck → grab from bulk
+          fromBulk.push(info.name);
+        } else if (assignmentNeedsAction(row)) {
+          needAssign.push(info.name);
+        }
+      }
+
+      const totalPull = [...pullFrom.values()].reduce((n, g) => n + g.cards.length, 0) + fromBulk.length;
+      setMainTabBadge("play", totalPull || null);
+
+      const groupCount = pullFrom.size + (fromBulk.length ? 1 : 0);
+      const parts = [];
+      parts.push(
+        `<p class="play-summary">To play <strong>${escapeHtml(selected.name)}</strong>: ` +
+          (totalPull
+            ? `grab <strong>${totalPull}</strong> shared card${totalPull === 1 ? "" : "s"} from ${groupCount} place${groupCount === 1 ? "" : "s"}.`
+            : `no shared cards to pull.`) +
+          (alreadyHere ? ` ${alreadyHere} shared cop${alreadyHere === 1 ? "y is" : "ies are"} already assigned here.` : "") +
+          `</p>`
+      );
+
+      if (needAssign.length) {
+        parts.push(`
+          <div class="sync-notice">
+            <strong>${needAssign.length} shared card${needAssign.length === 1 ? "" : "s"}</strong>
+            in this deck ${needAssign.length === 1 ? "has" : "have"} no assigned home yet — set the copy location on the
+            <strong>Shared &amp; Locations</strong> tab so it shows up here:
+            <div class="deck-tags" style="margin-top:0.5rem">${needAssign
+              .sort((a, b) => a.localeCompare(b))
+              .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+              .join("")}</div>
+          </div>`);
+      }
+
+      if (fromBulk.length) {
+        parts.push(`
+          <div class="pull-group">
+            <h4>Pull from bulk <span class="count">${fromBulk.length}</span></h4>
+            <p class="sub" style="margin:0 0 0.55rem">Owned in your collection, but not currently assigned to any sleeved deck.</p>
+            <div class="deck-tags">${fromBulk
+              .sort((a, b) => a.localeCompare(b))
+              .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+              .join("")}</div>
+          </div>`);
+      }
+
+      for (const g of pullFrom.values()) {
+        parts.push(`
+          <div class="pull-group">
+            <h4>Pull from ${escapeHtml(g.name)} <span class="count">${g.cards.length}</span></h4>
+            <div class="deck-tags">${g.cards
+              .sort((a, b) => a.localeCompare(b))
+              .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+              .join("")}</div>
+          </div>`);
+      }
+
+      if (!totalPull && !needAssign.length) {
+        parts.push(
+          `<p class="empty">Nothing to move — grab <strong>${escapeHtml(selected.name)}</strong> and go.</p>`
+        );
+      }
+
+      root.innerHTML = parts.join("");
     }
 
     function renderComboCard(v, almost = false) {
@@ -1925,29 +2085,63 @@
       wireSubtabs(sub, root, "combo");
     }
 
-    function ownershipDeckHtml({ deck, missing, owned }, multiMissingKeys) {
+    function ownershipDeckHtml({ deck, missing, owned, sleeveFrom }, multiMissingKeys) {
       const missRows = missing.map((row) => {
         const multi = multiMissingKeys?.has(cardKey(row.name));
         const badge = multi
           ? `<span class="missing-multi-badge" title="Also missing in other loaded decks">Multi-deck</span>`
           : "";
+        const bulkNote = row.have > 0
+          ? `<span class="tag" title="You already own some copies in your collection/bulk">in bulk ×${row.have}</span>`
+          : "";
         return `
         <tr class="${multi ? "missing-multi" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${badge}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}</td>
           <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
         </tr>`;
       }).join("");
       const multiCount = missing.filter((row) => multiMissingKeys?.has(cardKey(row.name))).length;
+
+      const fromBulk = (sleeveFrom || []).filter((r) => r.where === "bulk");
+      const fromOther = (sleeveFrom || []).filter((r) => r.where === "deck");
+      const sleeveHtml = (sleeveFrom || []).length
+        ? `
+          <div class="pull-group" style="margin-top:1.25rem">
+            <h4>Own it — sleeve for this deck <span class="count">${sleeveFrom.length}</span></h4>
+            <p class="sub" style="margin:0 0 0.65rem">In your collection/bulk, but not currently living in this sleeved deck.</p>
+            <table>
+              <thead><tr><th>Card</th><th>Where it is</th></tr></thead>
+              <tbody>
+                ${fromBulk.map((r) => `
+                  <tr>
+                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td><span class="tag" style="color:var(--accent)">In bulk (not in a deck)</span></td>
+                  </tr>`).join("")}
+                ${fromOther.map((r) => `
+                  <tr>
+                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td><span class="tag">In ${escapeHtml(r.fromDeck)}</span></td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`
+        : "";
+
       return `
         <p class="sub" style="margin-top:0">${owned.length} owned · <span class="owned-no">${missing.length} missing</span>${
           multiCount
             ? ` · <span class="owned-no">${multiCount} also needed by other decks</span>`
             : ""
+        }${
+          (sleeveFrom || []).length
+            ? ` · <span style="color:var(--accent)">${sleeveFrom.length} to sleeve from bulk/other decks</span>`
+            : ""
         }</p>
         ${missing.length
-          ? `<table><thead><tr><th>Missing</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
-          : `<p class="empty" style="color:var(--accent)">Nothing missing for this deck.</p>`}
+          ? `<table><thead><tr><th>Missing (buy / mark owned)</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
+          : `<p class="empty" style="color:var(--accent)">Nothing missing to buy for this deck.</p>`}
+        ${sleeveHtml}
       `;
     }
 
@@ -2021,8 +2215,11 @@
         const badge = multi
           ? `<span class="missing-multi-badge">${row.decks.length} decks</span>`
           : "";
+        const bulkNote = row.have > 0
+          ? `<span class="tag" title="You already own some copies in your collection/bulk">in bulk ×${row.have}</span>`
+          : "";
         return `<tr class="${multi ? "missing-multi" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${badge}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}${short ? ` (short ${short})` : ""}</td>
           <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
           <td><button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button></td>
@@ -2317,9 +2514,14 @@
       if (!collectionState?.has_collection && !(collectionState?.override_count > 0)) {
         return null;
       }
+      const excludeBasicsShared = document.getElementById("excludeBasics")?.checked ?? true;
+      const shared = findShared(decks, { excludeBasics: excludeBasicsShared });
+      const sharedByKey = new Map(shared.map((r) => [cardKey(r.name), r]));
+
       const perDeck = decks.map((deck) => {
         const missing = [];
         const owned = [];
+        const sleeveFrom = [];
         for (const info of deck.names.values()) {
           if (excludeBasics && isBasicLand(info.name)) continue;
           const have = ownedQuantity(info.name);
@@ -2331,10 +2533,31 @@
           };
           if (have >= info.quantity) owned.push(row);
           else missing.push(row);
+
+          // Owned shared staple whose physical copy is not currently in this deck
+          if (have > 0) {
+            const sharedRow = sharedByKey.get(cardKey(info.name));
+            if (sharedRow) {
+              const assignId = getCardAssignment(cardKey(info.name));
+              if (!assignId) {
+                sleeveFrom.push({ name: info.name, where: "bulk", fromDeck: null });
+              } else if (String(assignId) !== String(deck.id)) {
+                sleeveFrom.push({
+                  name: info.name,
+                  where: "deck",
+                  fromDeck: deckNameById(assignId, decks),
+                });
+              }
+            }
+          }
         }
         missing.sort((a, b) => a.name.localeCompare(b.name));
         owned.sort((a, b) => a.name.localeCompare(b.name));
-        return { deck, missing, owned };
+        sleeveFrom.sort((a, b) => {
+          if (a.where !== b.where) return a.where === "bulk" ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        return { deck, missing, owned, sleeveFrom };
       });
 
       const allMap = new Map();
@@ -2688,6 +2911,7 @@
       lastOwnership = computeOwnership(decks, { excludeBasics: excludeBasicsOwned });
       renderOwnership(lastOwnership);
       renderPowerLevels(decks);
+      renderPlayDeck();
       showResultsChrome();
       switchMainTab("shared");
 
@@ -2771,6 +2995,8 @@
       document.getElementById("ownedSyncNotice").innerHTML = "";
       document.getElementById("powerResults").innerHTML =
         `<p class="empty">Power level links appear after you Analyze or Quick assign.</p>`;
+      setMainTabBadge("play", null);
+      renderPlayDeck();
       setStatus("All decks cleared.", "ok");
       switchMainTab("imports");
     });
@@ -3026,6 +3252,9 @@
       if (e.key === "Enter") loadDeckstatsCollection();
     });
 
+    document.getElementById("playDeckSelect").addEventListener("change", () => {
+      renderPlayDeck();
+    });
     document.getElementById("collectionSearch").addEventListener("input", () => {
       renderCollectionSearch();
     });
@@ -3054,7 +3283,7 @@
       const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
       if (hash === "assign" || hash === "mobile") {
         await quickAssign();
-      } else if (["shared", "combos", "owned", "collection", "imports"].includes(hash)) {
+      } else if (["shared", "play", "combos", "owned", "collection", "imports"].includes(hash)) {
         switchMainTab(hash);
       }
     }
