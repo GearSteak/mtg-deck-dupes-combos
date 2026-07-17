@@ -1025,6 +1025,7 @@
 
       <div class="toolbar no-print">
         <button type="button" class="ghost" id="addDeck">+ Add deck</button>
+        <button type="button" class="ghost" id="dedupeDecks">Remove duplicates</button>
         <button type="button" class="ghost" id="clearDecks">Clear all decks</button>
         <span class="spacer"></span>
         <button type="button" class="ghost" id="quickAssignToolbar">Quick assign</button>
@@ -1325,7 +1326,9 @@
             deckId = Math.max(deckId, id);
             addDeck(deck.name || "", deck.text || "", id);
           }
+          dedupeDecksByName({ silent: true });
           saveDecksLocal();
+          refreshImportsBadge();
           changed = true;
         } else if (localNonEmpty > 0) {
           // Re-upload after Render redeploy / sleep wipe so phone can pull later.
@@ -1416,14 +1419,21 @@
           deckId = Math.max(deckId, id);
           addDeck(d.name || "", d.text || "", id);
         }
-        const n = countNonEmptyStoredDecks(saved);
+        const removed = dedupeDecksByName({ silent: true });
+        const n = countNonEmptyStoredDecks(gatherDecksForStorage());
+        refreshImportsBadge();
         if (n) {
-          setStatus(`Restored ${n} decklist${n === 1 ? "" : "s"} from this browser.`, "ok");
+          const extra = removed ? ` (removed ${removed} duplicate${removed === 1 ? "" : "s"})` : "";
+          setStatus(
+            `Restored ${n} decklist${n === 1 ? "" : "s"} — open the Imports & Decks tab to see them.${extra}`,
+            "ok"
+          );
         }
         return true;
       }
       addDeck("Deck 1");
       addDeck("Deck 2");
+      refreshImportsBadge();
       return false;
     }
 
@@ -1475,6 +1485,7 @@
           ? ` · ${assignedHere} single cop${assignedHere === 1 ? "y" : "ies"} here`
           : "";
         meta.textContent = `${n} cards${cmd}${assignNote}`;
+        refreshImportsBadge();
       };
       const onDeckEdit = () => {
         refreshMeta();
@@ -1501,6 +1512,7 @@
         purgeAssignmentsForDeckId(id);
         el.remove();
         scheduleSaveLocal();
+        refreshImportsBadge();
         if (lastAnalyze) {
           const decks = gatherDecks().filter((d) => d.names.size > 0);
           if (decks.length) {
@@ -1512,6 +1524,91 @@
       decksEl.appendChild(el);
       refreshMeta();
       return el;
+    }
+
+    function normalizeDeckTitle(name) {
+      return String(name || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+    }
+
+    function refreshImportsBadge() {
+      const n = countNonEmptyStoredDecks(gatherDecksForStorage());
+      setMainTabBadge("imports", n || null);
+    }
+
+    function findDeckElByName(name) {
+      const want = normalizeDeckTitle(name);
+      if (!want) return null;
+      return [...decksEl.querySelectorAll(".deck")].find((el) => {
+        const n = normalizeDeckTitle(el.querySelector(".deck-name")?.value);
+        return n === want;
+      }) || null;
+    }
+
+    /** Update an existing deck with the same name, or add a new one. */
+    function upsertDeck(name, text) {
+      const existing = findDeckElByName(name);
+      if (existing) {
+        const ta = existing.querySelector(".deck-text");
+        const nameInput = existing.querySelector(".deck-name");
+        if (nameInput && name) nameInput.value = name;
+        if (ta) ta.value = text || "";
+        ta?.dispatchEvent(new Event("input", { bubbles: true }));
+        return { el: existing, created: false };
+      }
+      return { el: addDeck(name, text), created: true };
+    }
+
+    /**
+     * Keep one copy per deck name. Prefer the longest list; remap assignments
+     * from removed duplicate ids onto the kept deck.
+     */
+    function dedupeDecksByName({ silent = false } = {}) {
+      const groups = new Map();
+      for (const el of [...decksEl.querySelectorAll(".deck")]) {
+        const name = el.querySelector(".deck-name")?.value || "";
+        const key = normalizeDeckTitle(name) || `__id_${el.dataset.id}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(el);
+      }
+
+      let removed = 0;
+      for (const els of groups.values()) {
+        if (els.length < 2) continue;
+        els.sort((a, b) => {
+          const ta = (a.querySelector(".deck-text")?.value || "").trim().length;
+          const tb = (b.querySelector(".deck-text")?.value || "").trim().length;
+          if (tb !== ta) return tb - ta;
+          return parseInt(a.dataset.id, 10) - parseInt(b.dataset.id, 10);
+        });
+        const keep = els[0];
+        const keepId = keep.dataset.id;
+        for (const dup of els.slice(1)) {
+          const dupId = dup.dataset.id;
+          for (const [cardKey, assigned] of Object.entries(cardAssignments)) {
+            if (String(assigned) === String(dupId)) {
+              cardAssignments[cardKey] = String(keepId);
+            }
+          }
+          dup.remove();
+          removed += 1;
+        }
+      }
+
+      if (removed) {
+        saveAssignmentsLocal();
+        saveLocalNow();
+        refreshImportsBadge();
+        refreshAllDeckMeta();
+        if (!silent) {
+          setStatus(`Removed ${removed} duplicate deck${removed === 1 ? "" : "s"}.`, "ok");
+        }
+      } else if (!silent) {
+        setStatus("No duplicate deck names found.", "ok");
+      }
+      return removed;
     }
 
     /** Official encode from https://edhpowerlevel.com/button/ */
@@ -3001,6 +3098,10 @@
     document.getElementById("addDeck").addEventListener("click", () => {
       addDeck();
       scheduleSaveLocal();
+      refreshImportsBadge();
+    });
+    document.getElementById("dedupeDecks").addEventListener("click", () => {
+      dedupeDecksByName();
     });
     document.getElementById("clearDecks").addEventListener("click", () => {
       if (!confirm("Remove all pasted/imported decks from this page?")) return;
@@ -3169,7 +3270,8 @@
         decksEl.innerHTML = "";
       }
 
-      let ok = 0;
+      let created = 0;
+      let updated = 0;
       for (let i = 0; i < ids.length; i++) {
         const id = ids[i];
         const meta = deckstatsDecks.find((d) => String(d.id) === String(id));
@@ -3178,17 +3280,28 @@
           const res = await fetch(`/api/deckstats/deck?owner_id=${encodeURIComponent(deckstatsOwnerId)}&deck_id=${encodeURIComponent(id)}`);
           const data = await res.json();
           if (!data.ok) throw new Error(data.error || "Import failed");
-          addDeck(data.name, data.list);
-          ok += 1;
+          const result = upsertDeck(data.name, data.list);
+          if (result.created) created += 1;
+          else updated += 1;
         } catch (err) {
           setStatus(`Failed on ${meta?.name || id}: ${err.message || err}`, "error");
         }
         if (i < ids.length - 1) await new Promise((r) => setTimeout(r, 250));
       }
       btn.disabled = false;
+      const ok = created + updated;
       if (ok) {
+        dedupeDecksByName({ silent: true });
         saveLocalNow();
-        setStatus(`Imported ${ok} deck${ok === 1 ? "" : "s"} from Deckstats (saved in this browser).`, "ok");
+        refreshImportsBadge();
+        switchMainTab("imports");
+        const parts = [];
+        if (created) parts.push(`${created} new`);
+        if (updated) parts.push(`${updated} updated`);
+        setStatus(
+          `Imported from Deckstats (${parts.join(", ")}) — same-name decks were updated, not duplicated.`,
+          "ok"
+        );
       }
     }
 
@@ -3315,12 +3428,17 @@
         }
       }
       await pullSessionFromServer();
+      dedupeDecksByName({ silent: true });
+      refreshImportsBadge();
       renderCollectionSearch();
       const hash = (location.hash || "").replace(/^#/, "").toLowerCase();
       if (hash === "assign" || hash === "mobile") {
         await quickAssign();
       } else if (["shared", "play", "combos", "owned", "collection", "imports"].includes(hash)) {
         switchMainTab(hash);
+      } else {
+        // Default: show Imports so restored decks are visible
+        switchMainTab("imports");
       }
 
       window.addEventListener("pagehide", flushSaveLocal);
