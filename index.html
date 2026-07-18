@@ -684,6 +684,39 @@
       gap: 0.35rem;
       justify-content: flex-end;
     }
+    .not-owned-badge {
+      display: inline-block;
+      margin-left: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #2a1a08;
+      background: var(--warn);
+      border-radius: 4px;
+      padding: 0.12rem 0.4rem;
+      vertical-align: middle;
+    }
+    button.danger,
+    .remove-deck {
+      color: var(--danger);
+      border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+    }
+    button.danger:hover,
+    .remove-deck:hover {
+      background: color-mix(in srgb, var(--danger) 14%, transparent);
+      border-color: var(--danger);
+    }
+    .deck-check-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      user-select: none;
+      cursor: pointer;
+    }
 
     .file-input {
       display: none;
@@ -1281,7 +1314,8 @@
       <div class="toolbar no-print">
         <button type="button" class="ghost" id="addDeck">+ Add deck</button>
         <button type="button" class="ghost" id="dedupeDecks">Remove duplicates</button>
-        <button type="button" class="ghost" id="clearDecks">Clear all decks</button>
+        <button type="button" class="ghost danger" id="removeSelectedDecks">Remove selected</button>
+        <button type="button" class="ghost danger" id="clearDecks">Clear all decks</button>
         <span class="spacer"></span>
         <button type="button" class="ghost" id="quickAssignToolbar">Quick assign</button>
         <button type="button" class="primary" id="analyze">Analyze decks</button>
@@ -1455,6 +1489,7 @@
     const LS_LAND_OWNED = "mtgddc-v1-land-owned";
     const LS_LAND_ALLOC = "mtgddc-v1-land-alloc";
     const LS_PROXIED = "mtgddc-v1-proxied";
+    const LS_NOT_OWNED = "mtgddc-v1-not-owned";
     const TUTORIAL_COOKIE = "card_checker_tutorial_seen";
 
     let deckId = 0;
@@ -1468,6 +1503,7 @@
     let landOwnedOverrides = {}; // cardKey -> number (manual owned totals for basics)
     let landAllocations = {}; // cardKey -> { [deckId]: qty }
     let proxiedCards = {}; // cardKey -> display name
+    let notOwnedCards = {}; // cardKey -> display name (force missing even if in collection)
     let lastSharedForAssign = [];
     let sharedDeckSelection = null; // Set of selected deck ids; null means initialize to all
     let knownSharedDeckIds = new Set();
@@ -1599,6 +1635,7 @@
       writeLocalJson(LS_LAND_OWNED, landOwnedOverrides);
       writeLocalJson(LS_LAND_ALLOC, landAllocations);
       writeLocalJson(LS_PROXIED, proxiedCards);
+      writeLocalJson(LS_NOT_OWNED, notOwnedCards);
       // Collection last — it's the biggest and must not block deck saves.
       saveCollectionLocal();
       schedulePushSession();
@@ -1773,19 +1810,61 @@
       landOwnedOverrides = readLocalJson(LS_LAND_OWNED) || {};
       landAllocations = readLocalJson(LS_LAND_ALLOC) || {};
       proxiedCards = readLocalJson(LS_PROXIED) || {};
+      notOwnedCards = readLocalJson(LS_NOT_OWNED) || {};
     }
 
     function isProxied(cardName) {
       return Boolean(proxiedCards[cardKey(cardName)]);
     }
 
+    function isNotOwned(cardName) {
+      return Boolean(notOwnedCards[cardKey(cardName)]);
+    }
+
     function setProxied(cardName, on) {
       const key = cardKey(cardName);
       if (!key) return;
-      if (on) proxiedCards[key] = normalizeName(cardName) || cardName;
-      else delete proxiedCards[key];
+      if (on) {
+        proxiedCards[key] = normalizeName(cardName) || cardName;
+        delete notOwnedCards[key];
+        writeLocalJson(LS_NOT_OWNED, notOwnedCards);
+      } else delete proxiedCards[key];
       writeLocalJson(LS_PROXIED, proxiedCards);
       scheduleSaveLocal();
+    }
+
+    function setNotOwned(cardName, on) {
+      const key = cardKey(cardName);
+      if (!key) return;
+      if (on) {
+        notOwnedCards[key] = normalizeName(cardName) || cardName;
+        delete proxiedCards[key];
+        writeLocalJson(LS_PROXIED, proxiedCards);
+      } else delete notOwnedCards[key];
+      writeLocalJson(LS_NOT_OWNED, notOwnedCards);
+      scheduleSaveLocal();
+    }
+
+    async function markNotOwned(name) {
+      if (!name) return;
+      try {
+        const overrideKeys = new Set(collectionState?.override_keys || []);
+        if (overrideKeys.has(cardKey(name))) {
+          await unmarkOwned(name, { quiet: true });
+        }
+        setNotOwned(name, true);
+        refreshOwnershipViews();
+        setStatus(`Marked “${name}” as not owned.`, "ok");
+      } catch (err) {
+        setStatus(String(err.message || err), "error");
+      }
+    }
+
+    function unmarkNotOwned(name) {
+      if (!name) return;
+      setNotOwned(name, false);
+      refreshOwnershipViews();
+      setStatus(`Cleared not-owned mark for “${name}”.`, "ok");
     }
 
     function refreshOwnershipViews() {
@@ -1856,9 +1935,12 @@
       el.dataset.id = String(id);
       el.innerHTML = `
         <div class="deck-top">
+          <label class="deck-check-wrap" title="Select for bulk remove">
+            <input type="checkbox" class="deck-check" aria-label="Select deck for removal" />
+          </label>
           <input type="text" class="deck-name" value="${escapeAttr(name || `Deck ${id}`)}" placeholder="Deck name" />
           <button type="button" class="ghost power-deck" title="Open on EDH Power Level">Power level</button>
-          <button type="button" class="ghost remove-deck" title="Remove deck">Remove</button>
+          <button type="button" class="ghost danger remove-deck" title="Remove this deck">Remove</button>
         </div>
         <textarea class="deck-text" placeholder="Paste decklist here&#10;1 Sol Ring&#10;1 Arcane Signet&#10;..."></textarea>
         <p class="deck-meta">0 cards</p>
@@ -1895,24 +1977,23 @@
         openEdhPowerLevel(list);
       });
       el.querySelector(".remove-deck").addEventListener("click", () => {
+        const label = nameInput.value.trim() || `Deck ${id}`;
         if (decksEl.children.length <= 1) {
+          if (!confirm(`Clear “${label}”? (At least one deck slot is kept.)`)) return;
           ta.value = "";
           nameInput.value = `Deck ${id}`;
           refreshMeta();
           scheduleSaveLocal();
+          hydrateResultsFromDecks({ quiet: true });
           return;
         }
+        if (!confirm(`Remove deck “${label}”?`)) return;
         purgeAssignmentsForDeckId(id);
         el.remove();
-        scheduleSaveLocal();
+        saveLocalNow();
         refreshImportsBadge();
-        if (lastAnalyze) {
-          const decks = gatherDecks().filter((d) => d.names.size > 0);
-          if (decks.length) {
-            const shared = findShared(decks, { excludeBasics: document.getElementById("excludeBasics").checked });
-            renderShared(shared, decks);
-          }
-        }
+        hydrateResultsFromDecks({ quiet: true });
+        setStatus(`Removed “${label}”.`, "ok");
       });
       decksEl.appendChild(el);
       refreshMeta();
@@ -2956,22 +3037,35 @@
         const bulkNote = row.have > 0
           ? `<span class="tag" title="You already own some copies in your collection/bulk">in bulk ×${row.have}</span>`
           : "";
+        const forced = isNotOwned(row.name)
+          ? `<span class="not-owned-badge">Not owned</span>`
+          : "";
         return `
         <tr class="${multi ? "missing-multi" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}${forced}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}</td>
           <td>
             <div class="missing-actions">
               <button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button>
               <button type="button" class="ghost mark-proxy" data-name="${escapeAttr(row.name)}">Mark proxy</button>
+              ${isNotOwned(row.name)
+                ? `<button type="button" class="ghost unmark-not-owned" data-name="${escapeAttr(row.name)}">Undo not owned</button>`
+                : ""}
             </div>
           </td>
         </tr>`;
       }).join("");
       const multiCount = missing.filter((row) => multiMissingKeys?.has(cardKey(row.name))).length;
       const proxiedOwned = (owned || []).filter((row) => row.proxied);
+      const overrideKeys = new Set(collectionState?.override_keys || []);
+      const overrideOwned = (owned || []).filter(
+        (row) => !row.proxied && overrideKeys.has(cardKey(row.name))
+      );
+      const realOwned = (owned || []).filter(
+        (row) => !row.proxied && !overrideKeys.has(cardKey(row.name))
+      );
 
-      const ownedExtra = proxiedOwned.length
+      const proxiedHtml = proxiedOwned.length
         ? `
           <div class="pull-group" style="margin-top:1.25rem">
             <h4>Proxied in this deck <span class="count">${proxiedOwned.length}</span></h4>
@@ -2989,6 +3083,51 @@
           </div>`
         : "";
 
+      const overrideHtml = overrideOwned.length
+        ? `
+          <div class="pull-group" style="margin-top:1.25rem">
+            <h4>Marked owned <span class="count">${overrideOwned.length}</span></h4>
+            <p class="sub" style="margin:0 0 0.65rem">Local overrides — unmark if you marked these by mistake.</p>
+            <table>
+              <thead><tr><th>Card</th><th></th></tr></thead>
+              <tbody>
+                ${overrideOwned.map((r) => `
+                  <tr>
+                    <td><strong>${escapeHtml(r.name)}</strong><span class="tag">override</span></td>
+                    <td>
+                      <div class="missing-actions">
+                        <button type="button" class="ghost unmark-owned" data-name="${escapeAttr(r.name)}">Unmark owned</button>
+                        <button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button>
+                      </div>
+                    </td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`
+        : "";
+
+      const collectionOwnedHtml = realOwned.length
+        ? `
+          <details class="pull-group" style="margin-top:1.25rem">
+            <summary style="cursor:pointer;font-weight:600">
+              In collection for this deck <span class="count">${realOwned.length}</span>
+            </summary>
+            <p class="sub">Mark not owned if your CSV is wrong and you don’t actually have the card.</p>
+            <table>
+              <thead><tr><th>Card</th><th>Have</th><th></th></tr></thead>
+              <tbody>
+                ${realOwned.slice(0, 80).map((r) => `
+                  <tr>
+                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td>${r.have}</td>
+                    <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+            ${realOwned.length > 80 ? `<p class="deck-meta">Showing first 80 — use Collection search for the rest.</p>` : ""}
+          </details>`
+        : "";
+
       const fromBulk = (sleeveFrom || []).filter((r) => r.where === "bulk");
       const fromOther = (sleeveFrom || []).filter((r) => r.where === "deck");
       const sleeveHtml = (sleeveFrom || []).length
@@ -2997,17 +3136,19 @@
             <h4>Own it — sleeve for this deck <span class="count">${sleeveFrom.length}</span></h4>
             <p class="sub" style="margin:0 0 0.65rem">In your collection/bulk, but not currently living in this sleeved deck.</p>
             <table>
-              <thead><tr><th>Card</th><th>Where it is</th></tr></thead>
+              <thead><tr><th>Card</th><th>Where it is</th><th></th></tr></thead>
               <tbody>
                 ${fromBulk.map((r) => `
                   <tr>
                     <td><strong>${escapeHtml(r.name)}</strong></td>
                     <td><span class="tag" style="color:var(--accent)">In bulk (not in a deck)</span></td>
+                    <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
                   </tr>`).join("")}
                 ${fromOther.map((r) => `
                   <tr>
                     <td><strong>${escapeHtml(r.name)}</strong></td>
                     <td><span class="tag">In ${escapeHtml(r.fromDeck)}</span></td>
+                    <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
                   </tr>`).join("")}
               </tbody>
             </table>
@@ -3027,8 +3168,10 @@
         ${missing.length
           ? `<table><thead><tr><th>Missing (buy / mark owned / proxy)</th><th>Copies</th><th></th></tr></thead><tbody>${missRows}</tbody></table>`
           : `<p class="empty" style="color:var(--accent)">Nothing missing to buy for this deck.</p>`}
-        ${ownedExtra}
+        ${proxiedHtml}
+        ${overrideHtml}
         ${sleeveHtml}
+        ${collectionOwnedHtml}
       `;
     }
 
@@ -3105,14 +3248,20 @@
         const bulkNote = row.have > 0
           ? `<span class="tag" title="You already own some copies in your collection/bulk">in bulk ×${row.have}</span>`
           : "";
+        const forced = isNotOwned(row.name)
+          ? `<span class="not-owned-badge">Not owned</span>`
+          : "";
         return `<tr class="${multi ? "missing-multi" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}${forced}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}${short ? ` (short ${short})` : ""}</td>
           <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
           <td>
             <div class="missing-actions">
               <button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button>
               <button type="button" class="ghost mark-proxy" data-name="${escapeAttr(row.name)}">Mark proxy</button>
+              ${isNotOwned(row.name)
+                ? `<button type="button" class="ghost unmark-not-owned" data-name="${escapeAttr(row.name)}">Undo not owned</button>`
+                : ""}
             </div>
           </td>
         </tr>`;
@@ -3172,6 +3321,15 @@
           refreshOwnershipViews();
           setStatus(`Unmarked proxy for “${btn.getAttribute("data-name")}”.`, "ok");
         });
+      });
+      root.querySelectorAll(".mark-not-owned").forEach((btn) => {
+        btn.addEventListener("click", () => markNotOwned(btn.getAttribute("data-name")));
+      });
+      root.querySelectorAll(".unmark-not-owned").forEach((btn) => {
+        btn.addEventListener("click", () => unmarkNotOwned(btn.getAttribute("data-name")));
+      });
+      root.querySelectorAll(".unmark-owned").forEach((btn) => {
+        btn.addEventListener("click", () => unmarkOwned(btn.getAttribute("data-name")));
       });
     }
 
@@ -3276,9 +3434,14 @@
       return 0;
     }
 
-    function ownedQuantity(cardName) {
+    function collectionQuantity(cardName) {
       if (!collectionState) return 0;
       return quantityInCardMap(collectionState.cards || {}, cardName, { allowOverrides: true });
+    }
+
+    function ownedQuantity(cardName) {
+      if (isNotOwned(cardName)) return 0;
+      return collectionQuantity(cardName);
     }
 
     function sourceQuantity(cardName, source) {
@@ -3307,6 +3470,8 @@
           name,
           key: k,
           owned: ownedQuantity(name),
+          collectionQty: collectionQuantity(name),
+          notOwned: isNotOwned(name),
           manabox: sourceQuantity(name, "manabox"),
           deckstats: sourceQuantity(name, "deckstats"),
           override: overrideKeys.has(k),
@@ -3329,7 +3494,9 @@
         const row = {
           name,
           key: k,
-          owned: Math.max(1, ownedQuantity(name)),
+          owned: isNotOwned(name) ? 0 : Math.max(1, ownedQuantity(name)),
+          collectionQty: isNotOwned(name) ? 0 : Math.max(1, collectionQuantity(name)),
+          notOwned: isNotOwned(name),
           manabox: sourceQuantity(name, "manabox"),
           deckstats: sourceQuantity(name, "deckstats"),
           override: true,
@@ -3392,6 +3559,7 @@
               <th>Owned</th>
               <th class="hide-sm">ManaBox</th>
               <th class="hide-sm">Deckstats</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -3399,10 +3567,32 @@
               .map(
                 (row) => `
               <tr>
-                <td>${escapeHtml(row.name)}${row.override ? ' <span class="tag">override</span>' : ""}</td>
-                <td>${row.owned}</td>
+                <td>${escapeHtml(row.name)}${
+                  row.override ? ' <span class="tag">override</span>' : ""
+                }${
+                  row.notOwned ? ' <span class="not-owned-badge">Not owned</span>' : ""
+                }</td>
+                <td class="${row.notOwned || row.owned <= 0 ? "owned-no" : "owned-yes"}">${
+                  row.notOwned && row.collectionQty > 0
+                    ? `0 <span class="tag" title="CSV/collection quantity ignored">CSV ×${row.collectionQty}</span>`
+                    : row.owned
+                }</td>
                 <td class="hide-sm">${row.manabox || "—"}</td>
                 <td class="hide-sm">${row.deckstats || "—"}</td>
+                <td>
+                  <div class="missing-actions">
+                    ${
+                      row.notOwned
+                        ? `<button type="button" class="ghost unmark-not-owned" data-name="${escapeAttr(row.name)}">Undo not owned</button>`
+                        : `<button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(row.name)}">Mark not owned</button>`
+                    }
+                    ${
+                      row.override && !row.notOwned
+                        ? `<button type="button" class="ghost unmark-owned" data-name="${escapeAttr(row.name)}">Unmark owned</button>`
+                        : ""
+                    }
+                  </div>
+                </td>
               </tr>`
               )
               .join("")}
@@ -3414,11 +3604,26 @@
             : ""
         }
       `;
+      root.querySelectorAll(".mark-not-owned").forEach((btn) => {
+        btn.addEventListener("click", () => markNotOwned(btn.getAttribute("data-name")));
+      });
+      root.querySelectorAll(".unmark-not-owned").forEach((btn) => {
+        btn.addEventListener("click", () => unmarkNotOwned(btn.getAttribute("data-name")));
+      });
+      root.querySelectorAll(".unmark-owned").forEach((btn) => {
+        btn.addEventListener("click", () => unmarkOwned(btn.getAttribute("data-name")));
+      });
     }
 
     function computeOwnership(decks, { excludeBasics }) {
       const hasProxies = Object.keys(proxiedCards).length > 0;
-      if (!collectionState?.has_collection && !(collectionState?.override_count > 0) && !hasProxies) {
+      const hasNotOwned = Object.keys(notOwnedCards).length > 0;
+      if (
+        !collectionState?.has_collection &&
+        !(collectionState?.override_count > 0) &&
+        !hasProxies &&
+        !hasNotOwned
+      ) {
         return null;
       }
       const excludeBasicsShared = document.getElementById("excludeBasics")?.checked ?? true;
@@ -3528,6 +3733,7 @@
     async function markOwned(name) {
       if (!name) return;
       try {
+        setNotOwned(name, false);
         const res = await fetch("/api/collection/owned", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3554,6 +3760,32 @@
         setStatus(`Marked “${name}” as owned (saved in this browser).`, "ok");
       } catch (err) {
         setStatus(String(err.message || err), "error");
+      }
+    }
+
+    async function unmarkOwned(name, { quiet = false } = {}) {
+      if (!name) return;
+      try {
+        const res = await fetch("/api/collection/owned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ remove: [name] }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Failed");
+        if (collectionState) {
+          collectionState.overrides = data.overrides || [];
+          collectionState.override_keys = (data.overrides || []).map((n) => cardKey(n));
+          collectionState.override_count = data.override_count || 0;
+          applyCollectionState(collectionState);
+        }
+        if (!quiet) {
+          refreshOwnershipViews();
+          setStatus(`Unmarked owned for “${name}”.`, "ok");
+        }
+      } catch (err) {
+        if (!quiet) setStatus(String(err.message || err), "error");
+        else throw err;
       }
     }
 
@@ -3929,7 +4161,16 @@
       landOwnedOverrides = {};
       landAllocations = {};
       proxiedCards = {};
-      clearLocalKeys(LS_DECKS, LS_ASSIGNMENTS, LS_COMBOS, LS_LAND_OWNED, LS_LAND_ALLOC, LS_PROXIED);
+      notOwnedCards = {};
+      clearLocalKeys(
+        LS_DECKS,
+        LS_ASSIGNMENTS,
+        LS_COMBOS,
+        LS_LAND_OWNED,
+        LS_LAND_ALLOC,
+        LS_PROXIED,
+        LS_NOT_OWNED
+      );
       addDeck("Deck 1");
       addDeck("Deck 2");
       scheduleSaveLocal();
@@ -3959,6 +4200,66 @@
       renderPlayDeck();
       setStatus("All decks cleared.", "ok");
       switchMainTab("imports");
+    });
+    document.getElementById("removeSelectedDecks").addEventListener("click", () => {
+      const allDecks = [...decksEl.querySelectorAll(".deck")];
+      const selected = allDecks.filter((el) => el.querySelector(".deck-check")?.checked);
+      if (!selected.length) {
+        setStatus("Select one or more decks with the checkboxes first.", "error");
+        return;
+      }
+      const labels = selected.map(
+        (el) => el.querySelector(".deck-name")?.value.trim() || `Deck ${el.dataset.id}`
+      );
+      const removingAll = selected.length >= allDecks.length;
+      if (removingAll) {
+        if (
+          !confirm(
+            `Clear ${selected.length} selected deck${selected.length === 1 ? "" : "s"}? At least one empty slot will be kept.`
+          )
+        ) {
+          return;
+        }
+      } else if (
+        !confirm(
+          `Remove ${selected.length} deck${selected.length === 1 ? "" : "s"}?\n\n${labels.slice(0, 8).join("\n")}${
+            labels.length > 8 ? `\n…and ${labels.length - 8} more` : ""
+          }`
+        )
+      ) {
+        return;
+      }
+
+      if (removingAll) {
+        const keep = selected[0];
+        for (const el of selected.slice(1)) {
+          purgeAssignmentsForDeckId(el.dataset.id);
+          el.remove();
+        }
+        purgeAssignmentsForDeckId(keep.dataset.id);
+        const ta = keep.querySelector(".deck-text");
+        const nameInput = keep.querySelector(".deck-name");
+        const check = keep.querySelector(".deck-check");
+        if (ta) ta.value = "";
+        if (nameInput) nameInput.value = `Deck ${keep.dataset.id}`;
+        if (check) check.checked = false;
+        const meta = keep.querySelector(".deck-meta");
+        if (meta) meta.textContent = "0 cards";
+      } else {
+        for (const el of selected) {
+          purgeAssignmentsForDeckId(el.dataset.id);
+          el.remove();
+        }
+      }
+      saveLocalNow();
+      refreshImportsBadge();
+      hydrateResultsFromDecks({ quiet: true });
+      setStatus(
+        removingAll
+          ? "Selected decks cleared (one empty slot kept)."
+          : `Removed ${selected.length} deck${selected.length === 1 ? "" : "s"}.`,
+        "ok"
+      );
     });
     document.getElementById("analyze").addEventListener("click", analyze);
     document.getElementById("quickAssign").addEventListener("click", quickAssign);
@@ -4173,6 +4474,8 @@
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "Clear failed");
         clearLocalKeys(LS_COLLECTION);
+        notOwnedCards = {};
+        clearLocalKeys(LS_NOT_OWNED);
         collectionState = null;
         collectionInBrowser = false;
         if (!restoreCollectionFromLocal()) {
