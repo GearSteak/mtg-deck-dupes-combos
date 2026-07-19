@@ -1393,7 +1393,7 @@
     </div>
 
     <div class="tab-panel" data-main-panel="owned" id="panelOwned">
-      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” / proxy overrides). Per deck also lists shared cards you own that are still in bulk or another sleeved deck.</p>
+      <p class="sub">Compared to your merged ManaBox + Deckstats collection (+ local “mark owned” / proxy overrides). Cards listed in another imported deck also count as owned (Deckstats often omits sleeved cards from collection export) — those show under “sleeve for this deck,” not missing.</p>
       <p class="deck-meta" id="ownedBrowserNote"></p>
       <div id="ownedSyncNotice"></div>
       <div class="subtabs no-print" id="ownedSubtabs"></div>
@@ -1772,8 +1772,9 @@
       return el?.querySelector(".deck-name")?.value.trim() || `Deck ${deckId}`;
     }
 
-    function assignmentNeedsAction(row) {
-      const owned = ownedQuantity(row.name);
+    function assignmentNeedsAction(row, decks) {
+      const allDecks = decks || gatherDecks().filter((d) => d.names.size > 0);
+      const owned = physicalOwnedQuantity(row.name, allDecks);
       const assignmentDecks = row.assignmentDecks || row.decks || [];
       const deckCount = assignmentDecks.length;
       if (deckCount < 2 || owned <= 0) return false;
@@ -1792,8 +1793,8 @@
       return `<span class="tag">own ${owned}</span>`;
     }
 
-    function countAssignmentConflicts(shared) {
-      return (shared || []).filter((row) => assignmentNeedsAction(row)).length;
+    function countAssignmentConflicts(shared, decks) {
+      return (shared || []).filter((row) => assignmentNeedsAction(row, decks)).length;
     }
 
     function applyCollectionState(data) {
@@ -2538,7 +2539,7 @@
         return;
       }
       switchMainTab("shared");
-      const conflicts = countAssignmentConflicts(result.shared);
+      const conflicts = countAssignmentConflicts(result.shared, gatherDecks().filter((d) => d.names.size > 0));
       setStatus(
         conflicts
           ? `${conflicts} staple${conflicts === 1 ? "" : "s"} need a deck — pick from the dropdown. Saved to this browser and server.`
@@ -2709,7 +2710,7 @@
       lastSharedForAssign = shared;
       if (lastAnalyze) lastAnalyze.shared = shared;
 
-      const conflicts = countAssignmentConflicts(shared);
+      const conflicts = countAssignmentConflicts(shared, decks);
       setMainTabBadge("shared", shared.length ? (conflicts ? `${shared.length} (${conflicts}!)` : shared.length) : null);
 
       if (!shared.length) {
@@ -2725,7 +2726,7 @@
             <strong>${conflicts} shared card${conflicts === 1 ? "" : "s"}</strong>
             still need a home deck — choose where your only copy lives (not a buy list).
           </div>`;
-      } else if (shared.some((row) => ownedQuantity(row.name) === 1)) {
+      } else if (shared.some((row) => physicalOwnedQuantity(row.name, decks) === 1)) {
         noticeEl.innerHTML = `
           <div class="sync-notice" style="border-color:color-mix(in srgb, var(--accent) 45%, var(--border));background:color-mix(in srgb, var(--accent) 10%, transparent)">
             Use the dropdown to track which deck has each single copy. Update it when you swap decks.
@@ -2735,8 +2736,8 @@
       }
 
       const rows = shared.map((row) => {
-        const owned = ownedQuantity(row.name);
-        const conflict = assignmentNeedsAction(row);
+        const owned = physicalOwnedQuantity(row.name, decks);
+        const conflict = assignmentNeedsAction(row, decks);
         const tags = row.decks
           .map((d) => `<span class="tag">${escapeHtml(d.name)} ×${d.quantity}</span>`)
           .join("");
@@ -2813,11 +2814,20 @@
           const srcName = deckNameById(assignId, decks);
           if (!pullFrom.has(assignId)) pullFrom.set(assignId, { name: srcName, cards: [] });
           pullFrom.get(assignId).cards.push(info.name);
-        } else if (ownedQuantity(info.name) > 0) {
-          // Owned but not sleeved in any tracked deck → grab from bulk
-          fromBulk.push(info.name);
-        } else if (assignmentNeedsAction(row)) {
-          needAssign.push(info.name);
+        } else {
+          const otherHomes = decks.filter(
+            (d) => String(d.id) !== String(selected.id) && d.names.has(key)
+          );
+          if (otherHomes.length === 1) {
+            const src = otherHomes[0];
+            if (!pullFrom.has(src.id)) pullFrom.set(src.id, { name: src.name, cards: [] });
+            pullFrom.get(src.id).cards.push(info.name);
+          } else if (ownedQuantity(info.name) > 0) {
+            // Owned in collection, but not currently assigned to any sleeved deck → grab from bulk
+            fromBulk.push(info.name);
+          } else if (otherHomes.length > 1 || assignmentNeedsAction(row, decks)) {
+            needAssign.push(info.name);
+          }
         }
       }
 
@@ -3147,7 +3157,9 @@
                 ${fromOther.map((r) => `
                   <tr>
                     <td><strong>${escapeHtml(r.name)}</strong></td>
-                    <td><span class="tag">In ${escapeHtml(r.fromDeck)}</span></td>
+                    <td><span class="tag">In ${escapeHtml(r.fromDeck)}${
+                      r.unassigned ? " (pick a home on Shared)" : ""
+                    }</span></td>
                     <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
                   </tr>`).join("")}
               </tbody>
@@ -3444,6 +3456,31 @@
       return collectionQuantity(cardName);
     }
 
+    /** Max copies listed in loaded decks (optionally skipping one deck). */
+    function quantityListedInDecks(cardName, decks, { exceptDeckId = null } = {}) {
+      const key = cardKey(cardName);
+      let maxQty = 0;
+      for (const d of decks || []) {
+        if (exceptDeckId != null && String(d.id) === String(exceptDeckId)) continue;
+        const info = d.names.get(key);
+        if (info) maxQty = Math.max(maxQty, info.quantity || 1);
+      }
+      return maxQty;
+    }
+
+    /**
+     * Physical copies for ownership / pull lists.
+     * Collection CSV alone under-counts when Deckstats/ManaBox omit deck-bound cards —
+     * a card listed in another imported deck (or assigned a home) counts as owned.
+     */
+    function physicalOwnedQuantity(cardName, decks, { exceptDeckId = null } = {}) {
+      if (isNotOwned(cardName)) return 0;
+      let have = collectionQuantity(cardName);
+      have = Math.max(have, quantityListedInDecks(cardName, decks, { exceptDeckId }));
+      if (getCardAssignment(cardKey(cardName))) have = Math.max(have, 1);
+      return have;
+    }
+
     function sourceQuantity(cardName, source) {
       const map = collectionState?.cards_by_source?.[source] || {};
       return quantityInCardMap(map, cardName, { allowOverrides: false });
@@ -3636,13 +3673,16 @@
         const sleeveFrom = [];
         for (const info of deck.names.values()) {
           if (excludeBasics && isBasicLand(info.name)) continue;
-          const have = ownedQuantity(info.name);
+          const key = cardKey(info.name);
+          const collHave = ownedQuantity(info.name);
+          const have = physicalOwnedQuantity(info.name, decks, { exceptDeckId: deck.id });
           const proxied = isProxied(info.name);
           const effectiveHave = proxied ? Math.max(have, info.quantity) : have;
           const row = {
             name: info.name,
             need: info.quantity,
             have,
+            collHave,
             short: Math.max(0, info.quantity - effectiveHave),
             proxied,
           };
@@ -3652,17 +3692,31 @@
           // Owned shared staple whose physical copy is not currently in this deck
           // (skip proxies — they cover the slot without a real sleeved copy)
           if (!proxied && have > 0) {
-            const sharedRow = sharedByKey.get(cardKey(info.name));
+            const sharedRow = sharedByKey.get(key);
             if (sharedRow) {
-              const assignId = getCardAssignment(cardKey(info.name));
-              if (!assignId) {
-                sleeveFrom.push({ name: info.name, where: "bulk", fromDeck: null });
-              } else if (String(assignId) !== String(deck.id)) {
+              const assignId = getCardAssignment(key);
+              if (assignId && String(assignId) === String(deck.id)) {
+                // Already home — nothing to sleeve
+              } else if (assignId) {
                 sleeveFrom.push({
                   name: info.name,
                   where: "deck",
                   fromDeck: deckNameById(assignId, decks),
                 });
+              } else {
+                const others = decks.filter(
+                  (d) => String(d.id) !== String(deck.id) && d.names.has(key)
+                );
+                if (others.length) {
+                  sleeveFrom.push({
+                    name: info.name,
+                    where: "deck",
+                    fromDeck: others.map((d) => d.name).join(" / "),
+                    unassigned: true,
+                  });
+                } else if (collHave > 0) {
+                  sleeveFrom.push({ name: info.name, where: "bulk", fromDeck: null });
+                }
               }
             }
           }
