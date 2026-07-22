@@ -927,6 +927,44 @@
       border-color: var(--accent);
     }
 
+    .play-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      margin: -0.25rem 0 1rem;
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+
+    .play-options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+    }
+
+    .overlap-section {
+      margin-top: 1.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .overlap-section > h3 {
+      font-family: var(--display);
+      font-weight: 400;
+      font-size: 1.35rem;
+      margin: 0 0 0.35rem;
+    }
+
+    .overlap-deck {
+      margin-top: 1rem;
+    }
+
+    .overlap-deck h4 {
+      margin: 0 0 0.45rem;
+      font-size: 1.02rem;
+    }
+
     .power-section {
       margin-top: 2rem;
       padding-top: 1.25rem;
@@ -1372,12 +1410,18 @@
 
     <div class="tab-panel" data-main-panel="play" id="panelPlay">
       <p class="sub">
-        Getting a deck ready to play? Pick it below to see which shared staples to pull
-        from your other decks (based on where each single copy currently lives).
+        Pick a deck to see which shared staples to pull (by copy location), plus which other decks
+        share <em>interesting</em> cards with it — ignoring basics and common staples like Sol Ring / Arcane Signet.
       </p>
       <div class="collection-search-row no-print">
         <label for="playDeckSelect" class="hint" style="align-self:center">Play</label>
         <select id="playDeckSelect" class="assign-deck" style="max-width:none;flex:1;min-width:200px" aria-label="Deck to assemble"></select>
+      </div>
+      <div class="play-options no-print">
+        <label>
+          <input type="checkbox" id="hidePlayStaples" checked />
+          Hide common staples in deck overlaps
+        </label>
       </div>
       <div id="playResults">
         <p class="empty">Import decks on the Imports tab, then choose a deck here to see which cards to pull.</p>
@@ -1476,6 +1520,70 @@
       "snow-covered plains", "snow-covered island", "snow-covered swamp",
       "snow-covered mountain", "snow-covered forest",
       "wastes", "snow-covered wastes",
+    ]);
+
+    // Ubiquitous EDH filler — hide these when looking for “interesting” cross-deck overlaps.
+    const COMMON_STAPLES = new Set([
+      // Rocks / fast mana
+      "sol ring", "arcane signet", "mana crypt", "chrome mox", "mox diamond", "jeweled lotus",
+      "lotus petal", "mana vault", "grim monolith", "basalt monolith", "everflowing chalice",
+      "worn powerstone", "thran dynamo", "gilded lotus", "mind stone", "thought vessel",
+      "fellwar stone", "commander's sphere", "chromatic lantern", "isochron scepter",
+      "dimir signet", "azorius signet", "orzhov signet", "rakdos signet", "gruul signet",
+      "simic signet", "selesnya signet", "boros signet", "golgari signet", "izzet signet",
+      "talisman of dominance", "talisman of progress", "talisman of unity", "talisman of hierarchy",
+      "talisman of curiosity", "talisman of creativity", "talisman of impulse",
+      "talisman of conviction", "talisman of resilience", "talisman of indulgence",
+      // Protection / equipment
+      "lightning greaves", "swiftfoot boots", "whispersilk cloak", "skullclamp",
+      "sensei's divining top", "scroll rack",
+      // Interaction
+      "path to exile", "swords to plowshares", "generous gift", "beast within", "chaos warp",
+      "counterspell", "negate", "dovin's veto", "swan song", "force of will", "force of negation",
+      "fierce guardianship", "deflecting swat", "teferi's protection", "flawless maneuver",
+      "deadly rollick", "cyclonic rift", "toxic deluge", "blasphemous act", "damnation",
+      "wrath of god", "day of judgment", "supreme verdict", "farewell", "austere command",
+      "assassin's trophy", "abrupt decay", "anguished unmaking", "despark", "feed the swarm",
+      "infernal grasp", "go for the throat", "fatal push", "dismember", "reality shift",
+      "pongify", "rapid hybridization", "nature's claim", "force of vigor", "veil of summer",
+      "heroic intervention", "boros charm", "silence", "grand abolisher", "drannith magistrate",
+      // Tutors / draw engines
+      "demonic tutor", "vampiric tutor", "imperial seal", "diabolic intent", "gamble",
+      "enlightened tutor", "mystical tutor", "worldly tutor", "eladamri's call",
+      "rhystic study", "smothering tithe", "mystic remora", "esper sentinel", "the one ring",
+      "sylvan library", "necropotence", "dark confidant", "phyrexian arena",
+      "black market connections", "dockside extortionist", "ragavan, nimble pilferer",
+      // Ramp dorks / rituals
+      "cultivate", "kodama's reach", "farseek", "nature's lore", "three visits", "rampant growth",
+      "sakura-tribe elder", "wood elves", "llanowar elves", "elves of deep shadow",
+      "birds of paradise", "noble hierarch", "avacyn's pilgrim", "arbor elf", "fyndhorn elves",
+      "eternal witness", "reclamation sage",
+      // Lands people run everywhere
+      "command tower", "exotic orchard", "path of ancestry", "evolving wilds", "terramorphic expanse",
+      "myriad landscape", "ash barrens", "fabled passage", "prismatic vista", "reliquary tower",
+      "rogue's passage", "access tunnel", "war room", "bonders' enclave", "temple of the false god",
+      "ghost quarter", "field of ruin", "strip mine", "wasteland", "ancient tomb",
+      "city of brass", "mana confluence", "forbidden orchard", "reflecting pool", "cavern of souls",
+      "homeward path", "arena of glory",
+      "flooded strand", "polluted delta", "bloodstained mire", "wooded foothills", "windswept heath",
+      "marsh flats", "scalding tarn", "verdant catacombs", "misty rainforest", "arid mesa",
+      "breeding pool", "steam vents", "watery grave", "godless shrine", "sacred foundry",
+      "stomping ground", "overgrown tomb", "blood crypt", "hallowed fountain", "temple garden",
+      "zagoth triome", "indatha triome", "ketria triome", "savai triome", "raugrin triome",
+      "jetmir's garden", "raffine's tower", "spara's headquarters", "xander's lounge",
+      "ziator's proving ground",
+      "lush portico", "elegant parlor", "underground mortuary", "commercial district", "hedge maze",
+      "shadowy backstreet", "undercity sewers", "thundering falls", "meticulous archive",
+      "raucous theater",
+      "rugged prairie", "sunken hollow", "canopy vista", "cinder glade", "prairie stream",
+      "smoldering marsh", "fortified village", "choked estuary", "foreboding ruins",
+      "game trail", "port town", "highland lake", "woodland stream", "stone quarry",
+      "swiftwater cliffs", "thornwood falls", "tranquil cove", "dismal backwater", "bloodfell caves",
+      "blossoming sands", "jungle hollow", "rugged highlands", "scoured barrens", "wind-scarred crag",
+      "volcanic island", "underground sea", "tropical island", "tundra", "bayou", "badlands",
+      "savannah", "taiga", "scrubland", "plateau",
+      "otawara, soaring city", "boseiju, who endures", "eiganjo, seat of the empire",
+      "takenuma, abandoned mire", "sokenzan, crucible of defiance",
     ]);
 
     const SECTION_RE = /^(?:\/\/\s*)?(commander(?:s)?|deck|main(?:board)?|sideboard|maybeboard|companions?|considerations?)\s*:?\s*$/i;
@@ -2199,6 +2307,30 @@
 
     function isBasicLand(name) {
       return BASIC_LANDS.has(cardKey(name));
+    }
+
+    function isCommonStaple(name) {
+      return COMMON_STAPLES.has(cardKey(name));
+    }
+
+    /** Cards this deck shares with each other deck (optionally hiding common staples). */
+    function deckOverlapsForPlay(selected, decks, { hideStaples }) {
+      const overlaps = [];
+      for (const other of decks) {
+        if (String(other.id) === String(selected.id)) continue;
+        const cards = [];
+        for (const [key, info] of selected.names) {
+          if (isBasicLand(info.name)) continue;
+          if (hideStaples && isCommonStaple(info.name)) continue;
+          if (other.names.has(key)) cards.push(info.name);
+        }
+        cards.sort((a, b) => a.localeCompare(b));
+        if (cards.length) overlaps.push({ deck: other, cards });
+      }
+      overlaps.sort(
+        (a, b) => b.cards.length - a.cards.length || a.deck.name.localeCompare(b.deck.name)
+      );
+      return overlaps;
     }
 
     function getLandOwned(name) {
@@ -2929,7 +3061,39 @@
         );
       }
 
-      setMainTabBadge("play", (totalPull + basicsToPull) || null);
+      const hideStaples = document.getElementById("hidePlayStaples")?.checked ?? true;
+      const overlaps = deckOverlapsForPlay(selected, decks, { hideStaples });
+      const overlapCardCount = overlaps.reduce((n, o) => n + o.cards.length, 0);
+      parts.push(`
+        <div class="overlap-section">
+          <h3>Other decks with shared cards</h3>
+          <p class="sub" style="margin:0 0 0.75rem">
+            ${hideStaples
+              ? "Interesting overlaps only — basics and common staples (Sol Ring, Arcane Signet, Command Tower, …) are hidden."
+              : "All non-basic overlaps with your other imported decks."}
+          </p>
+          ${
+            overlaps.length
+              ? overlaps
+                  .map(
+                    (o) => `
+            <div class="overlap-deck pull-group">
+              <h4>${escapeHtml(o.deck.name)} <span class="count">${o.cards.length}</span></h4>
+              <div class="deck-tags">${o.cards
+                .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+                .join("")}</div>
+            </div>`
+                  )
+                  .join("")
+              : `<p class="empty">${
+                  hideStaples
+                    ? "No interesting overlaps — only staples/basics are shared with your other decks."
+                    : "No shared non-basic cards with your other decks."
+                }</p>`
+          }
+        </div>`);
+
+      setMainTabBadge("play", (totalPull + basicsToPull) || overlaps.length || null);
       root.innerHTML = parts.join("");
 
       document.getElementById("markBasicsSleeved")?.addEventListener("click", () => {
@@ -4582,6 +4746,9 @@
     });
 
     document.getElementById("playDeckSelect").addEventListener("change", () => {
+      renderPlayDeck();
+    });
+    document.getElementById("hidePlayStaples").addEventListener("change", () => {
       renderPlayDeck();
     });
     document.getElementById("resetLandOwned").addEventListener("click", () => {
