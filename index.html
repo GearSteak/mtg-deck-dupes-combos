@@ -3063,7 +3063,6 @@
 
       const hideStaples = document.getElementById("hidePlayStaples")?.checked ?? true;
       const overlaps = deckOverlapsForPlay(selected, decks, { hideStaples });
-      const overlapCardCount = overlaps.reduce((n, o) => n + o.cards.length, 0);
       parts.push(`
         <div class="overlap-section">
           <h3>Other decks with shared cards</h3>
