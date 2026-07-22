@@ -14,7 +14,7 @@ Paste multiple Magic: The Gathering decklists (or import public Deckstats decks)
 | **Imports & Decks** | Upload CSVs, Deckstats collection/deck import, paste decklists, Quick assign, Analyze |
 | **Shared & Locations** | Choose which decks to compare, view shared staples, and set “your copy is in” locations |
 | **Lands** | Track basic land pools by count (owned vs each deck’s need / sleeved) |
-| **Play a Deck** | Pick a deck to see which shared cards and basics to pull, plus other decks that share non-staple cards |
+| **Play a Deck** | Multi-select decks you’re bringing; see combined pulls, single-copy conflicts, and overlaps with decks left at home |
 | **Combos** | Commander Spellbook results (after Analyze) |
 | **Owned / Missing** | Cards you still need vs what’s in your collection |
 | **Collection** | Search your imported collection by card name |
@@ -59,7 +59,7 @@ Notes:
 3. Click **Analyze decks** (or **Quick assign** on phone to skip combo lookup)
 4. **Shared & Locations** → select the decks to compare, then set which deck has each shared staple
 5. **Lands** → set owned basic counts and optional sleeved counts for the shared land pool
-6. **Play a Deck** → pick the deck you want to play to see staples/basics to pull, and which other decks share interesting (non-staple) cards with it
+6. **Play a Deck** → select one or more decks you’re bringing to see staples/basics to pull, conflicts when multiple brought decks need the same copy, and overlaps with decks left at home
 7. Check **Combos** / **Owned / Missing** as needed
 8. **Collection** → search any owned card by name
 

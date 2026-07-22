@@ -1410,13 +1410,11 @@
 
     <div class="tab-panel" data-main-panel="play" id="panelPlay">
       <p class="sub">
-        Pick a deck to see which shared staples to pull (by copy location), plus which other decks
-        share <em>interesting</em> cards with it — ignoring basics and common staples like Sol Ring / Arcane Signet.
+        Select one or more decks you’re bringing. See shared staples to pull from decks left at home,
+        conflicts when multiple brought decks need the same single copy, and interesting overlaps
+        with other lists (staples like Sol Ring / Arcane Signet hidden by default).
       </p>
-      <div class="collection-search-row no-print">
-        <label for="playDeckSelect" class="hint" style="align-self:center">Play</label>
-        <select id="playDeckSelect" class="assign-deck" style="max-width:none;flex:1;min-width:200px" aria-label="Deck to assemble"></select>
-      </div>
+      <div class="pill-row no-print" id="playFilters"></div>
       <div class="play-options no-print">
         <label>
           <input type="checkbox" id="hidePlayStaples" checked />
@@ -1424,7 +1422,7 @@
         </label>
       </div>
       <div id="playResults">
-        <p class="empty">Import decks on the Imports tab, then choose a deck here to see which cards to pull.</p>
+        <p class="empty">Import decks on the Imports tab, then choose one or more decks here.</p>
       </div>
     </div>
 
@@ -1496,7 +1494,7 @@
         <li><div><strong>Import your collection and decks.</strong><br /><span class="sub">On Imports &amp; Decks, upload a ManaBox/Deckstats CSV, import public Deckstats decks, or paste lists manually.</span></div></li>
         <li><div><strong>Analyze your lists.</strong><br /><span class="sub">Analyze finds shared cards, Commander Spellbook combos, and cards missing from your collection. Quick assign skips the slower combo lookup.</span></div></li>
         <li><div><strong>Choose what to compare.</strong><br /><span class="sub">Shared &amp; Locations lets you select specific decks, then record which sleeved deck currently holds each physical staple. Use the Lands tab for basic land pools (multi-copy).</span></div></li>
-        <li><div><strong>Get a deck ready to play.</strong><br /><span class="sub">Play a Deck tells you what staples and basics to pull from bulk or another deck before game night.</span></div></li>
+        <li><div><strong>Get decks ready to play.</strong><br /><span class="sub">Play a Deck lets you multi-select what you’re bringing, then shows staples/basics to pull and conflicts when two brought decks share one physical copy.</span></div></li>
         <li><div><strong>Check the other tabs.</strong><br /><span class="sub">Use Combos for known interactions, Owned / Missing for buy and sleeve lists, and Collection to search what you own.</span></div></li>
       </ol>
 
@@ -1615,6 +1613,7 @@
     let lastSharedForAssign = [];
     let sharedDeckSelection = null; // Set of selected deck ids; null means initialize to all
     let knownSharedDeckIds = new Set();
+    let playDeckSelection = null; // Set of deck ids you're bringing; null = default to first deck
     let saveLocalTimer = null;
     let pushSessionTimer = null;
     let lastOwnership = null; // { decks: [...], missingAll: [...] }
@@ -2313,16 +2312,24 @@
       return COMMON_STAPLES.has(cardKey(name));
     }
 
-    /** Cards this deck shares with each other deck (optionally hiding common staples). */
-    function deckOverlapsForPlay(selected, decks, { hideStaples }) {
+    /** Cards any brought deck shares with decks left at home (optionally hiding staples). */
+    function deckOverlapsForPlay(selectedDecks, allDecks, { hideStaples }) {
+      const selectedIds = new Set(selectedDecks.map((d) => String(d.id)));
+      const leftHome = allDecks.filter((d) => !selectedIds.has(String(d.id)));
       const overlaps = [];
-      for (const other of decks) {
-        if (String(other.id) === String(selected.id)) continue;
+      for (const other of leftHome) {
         const cards = [];
-        for (const [key, info] of selected.names) {
-          if (isBasicLand(info.name)) continue;
-          if (hideStaples && isCommonStaple(info.name)) continue;
-          if (other.names.has(key)) cards.push(info.name);
+        const seen = new Set();
+        for (const selected of selectedDecks) {
+          for (const [key, info] of selected.names) {
+            if (seen.has(key)) continue;
+            if (isBasicLand(info.name)) continue;
+            if (hideStaples && isCommonStaple(info.name)) continue;
+            if (other.names.has(key)) {
+              seen.add(key);
+              cards.push(info.name);
+            }
+          }
         }
         cards.sort((a, b) => a.localeCompare(b));
         if (cards.length) overlaps.push({ deck: other, cards });
@@ -2331,6 +2338,74 @@
         (a, b) => b.cards.length - a.cards.length || a.deck.name.localeCompare(b.deck.name)
       );
       return overlaps;
+    }
+
+    function selectedDecksForPlay(decks) {
+      const currentIds = new Set((decks || []).map((d) => String(d.id)));
+      if (playDeckSelection == null) {
+        playDeckSelection = decks?.[0] ? new Set([String(decks[0].id)]) : new Set();
+      } else {
+        const before = playDeckSelection.size;
+        for (const id of [...playDeckSelection]) {
+          if (!currentIds.has(id)) playDeckSelection.delete(id);
+        }
+        // Only auto-pick if selected decks disappeared from Imports (not user clearing)
+        if (!playDeckSelection.size && before > 0 && decks?.[0]) {
+          playDeckSelection.add(String(decks[0].id));
+        }
+      }
+      return (decks || []).filter((d) => playDeckSelection.has(String(d.id)));
+    }
+
+    function renderPlayDeckFilters(decks) {
+      const filters = document.getElementById("playFilters");
+      if (!filters) return;
+      filters.className = "shared-filter-controls";
+      filters.innerHTML = `
+        <span class="hint" style="align-self:center">Bringing</span>
+        <button type="button" class="ghost" id="playSelectAll">All</button>
+        <button type="button" class="ghost" id="playSelectNone">None</button>
+        ${(decks || [])
+          .map((d) => {
+            const checked = playDeckSelection?.has(String(d.id));
+            return `<label class="pill${checked ? " on" : ""}">
+            <input type="checkbox" class="play-deck-filter" value="${escapeAttr(String(d.id))}"${checked ? " checked" : ""} />
+            ${escapeHtml(d.name)}
+          </label>`;
+          })
+          .join("")}
+      `;
+
+      filters.querySelector("#playSelectAll")?.addEventListener("click", () => {
+        playDeckSelection = new Set((decks || []).map((d) => String(d.id)));
+        renderPlayDeck();
+      });
+      filters.querySelector("#playSelectNone")?.addEventListener("click", () => {
+        playDeckSelection = new Set();
+        renderPlayDeck();
+      });
+      filters.querySelectorAll(".play-deck-filter").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (!playDeckSelection) playDeckSelection = new Set();
+          if (input.checked) playDeckSelection.add(input.value);
+          else playDeckSelection.delete(input.value);
+          renderPlayDeck();
+        });
+      });
+    }
+
+    function addPlayPullCard(map, sourceId, sourceName, cardName, forDeckName) {
+      const sid = String(sourceId);
+      if (!map.has(sid)) map.set(sid, { name: sourceName, cards: new Map() });
+      const group = map.get(sid);
+      const key = cardKey(cardName);
+      if (!group.cards.has(key)) {
+        group.cards.set(key, { name: cardName, forDecks: [] });
+      }
+      const entry = group.cards.get(key);
+      if (forDeckName && !entry.forDecks.includes(forDeckName)) {
+        entry.forDecks.push(forDeckName);
+      }
     }
 
     function getLandOwned(name) {
@@ -2906,170 +2981,252 @@
 
     function renderPlayDeck() {
       const root = document.getElementById("playResults");
-      const select = document.getElementById("playDeckSelect");
-      if (!root || !select) return;
+      if (!root) return;
 
       const decks = gatherDecks().filter((d) => d.names.size > 0);
       if (!decks.length) {
-        select.innerHTML = "";
-        select.disabled = true;
+        playDeckSelection = null;
+        const filters = document.getElementById("playFilters");
+        if (filters) filters.innerHTML = "";
         setMainTabBadge("play", null);
-        root.innerHTML = `<p class="empty">Import decks on the Imports tab, then choose a deck here to see which cards to pull.</p>`;
+        root.innerHTML = `<p class="empty">Import decks on the Imports tab, then choose one or more decks here.</p>`;
         return;
       }
 
-      select.disabled = false;
-      const prev = select.value;
-      select.innerHTML = decks
-        .map((d) => `<option value="${escapeAttr(String(d.id))}">${escapeHtml(d.name)}</option>`)
-        .join("");
-      if (decks.some((d) => String(d.id) === String(prev))) select.value = prev;
-      const selected = decks.find((d) => String(d.id) === String(select.value)) || decks[0];
+      const selectedDecks = selectedDecksForPlay(decks);
+      renderPlayDeckFilters(decks);
 
+      if (!selectedDecks.length) {
+        setMainTabBadge("play", null);
+        root.innerHTML = `<p class="empty">Select at least one deck you’re bringing above.</p>`;
+        return;
+      }
+
+      const selectedIds = new Set(selectedDecks.map((d) => String(d.id)));
+      const multi = selectedDecks.length > 1;
       const excludeBasics = document.getElementById("excludeBasics").checked;
       const shared = findShared(decks, { excludeBasics });
       const sharedByKey = new Map(shared.map((r) => [cardKey(r.name), r]));
 
-      const pullFrom = new Map(); // sourceDeckId -> { name, cards: [] }
-      const fromBulk = [];
-      const needAssign = [];
+      const pullFrom = new Map(); // sourceDeckId -> { name, cards: Map }
+      const fromBulk = new Map(); // cardKey -> { name, forDecks }
+      const needAssign = new Map();
+      const conflicts = new Map(); // cardKey -> { name, decks: [] }
       let alreadyHere = 0;
 
-      for (const info of selected.names.values()) {
-        const key = cardKey(info.name);
-        const row = sharedByKey.get(key);
-        if (!row) continue; // not a shared staple; assume you have a dedicated copy
-        const assignId = getCardAssignment(key);
-        if (assignId && String(assignId) === String(selected.id)) {
-          alreadyHere++;
-        } else if (assignId) {
-          const srcName = deckNameById(assignId, decks);
-          if (!pullFrom.has(assignId)) pullFrom.set(assignId, { name: srcName, cards: [] });
-          pullFrom.get(assignId).cards.push(info.name);
-        } else {
-          const otherHomes = decks.filter(
-            (d) => String(d.id) !== String(selected.id) && d.names.has(key)
+      for (const selected of selectedDecks) {
+        for (const info of selected.names.values()) {
+          const key = cardKey(info.name);
+          const row = sharedByKey.get(key);
+          if (!row) continue;
+
+          const broughtThatNeed = selectedDecks.filter((d) => d.names.has(key));
+          if (broughtThatNeed.length >= 2) {
+            const owned = physicalOwnedQuantity(info.name, decks);
+            if (owned <= 1 || broughtThatNeed.length > owned) {
+              if (!conflicts.has(key)) {
+                conflicts.set(key, {
+                  name: info.name,
+                  decks: broughtThatNeed.map((d) => d.name),
+                });
+              }
+            }
+          }
+
+          const assignId = getCardAssignment(key);
+          if (assignId && selectedIds.has(String(assignId))) {
+            if (String(assignId) === String(selected.id)) alreadyHere++;
+            continue;
+          }
+          if (assignId) {
+            addPlayPullCard(
+              pullFrom,
+              assignId,
+              deckNameById(assignId, decks),
+              info.name,
+              selected.name
+            );
+            continue;
+          }
+
+          const homesOutside = decks.filter(
+            (d) => !selectedIds.has(String(d.id)) && d.names.has(key)
           );
-          if (otherHomes.length === 1) {
-            const src = otherHomes[0];
-            if (!pullFrom.has(src.id)) pullFrom.set(src.id, { name: src.name, cards: [] });
-            pullFrom.get(src.id).cards.push(info.name);
+          if (homesOutside.length === 1) {
+            const src = homesOutside[0];
+            addPlayPullCard(pullFrom, src.id, src.name, info.name, selected.name);
           } else if (ownedQuantity(info.name) > 0) {
-            // Owned in collection, but not currently assigned to any sleeved deck → grab from bulk
-            fromBulk.push(info.name);
-          } else if (otherHomes.length > 1 || assignmentNeedsAction(row, decks)) {
-            needAssign.push(info.name);
+            if (!fromBulk.has(key)) fromBulk.set(key, { name: info.name, forDecks: [] });
+            const entry = fromBulk.get(key);
+            if (!entry.forDecks.includes(selected.name)) entry.forDecks.push(selected.name);
+          } else if (homesOutside.length > 1 || assignmentNeedsAction(row, decks)) {
+            if (!needAssign.has(key)) needAssign.set(key, { name: info.name, forDecks: [] });
+            const entry = needAssign.get(key);
+            if (!entry.forDecks.includes(selected.name)) entry.forDecks.push(selected.name);
           }
         }
       }
 
-      const totalPull = [...pullFrom.values()].reduce((n, g) => n + g.cards.length, 0) + fromBulk.length;
+      const formatForDecks = (forDecks) => {
+        if (!multi || !forDecks?.length) return "";
+        return ` <span class="tag">for ${escapeHtml(forDecks.join(", "))}</span>`;
+      };
 
-      const groupCount = pullFrom.size + (fromBulk.length ? 1 : 0);
+      const pullCardCount = [...pullFrom.values()].reduce((n, g) => n + g.cards.size, 0);
+      const totalPull = pullCardCount + fromBulk.size;
+      const groupCount = pullFrom.size + (fromBulk.size ? 1 : 0);
+      const broughtLabel = selectedDecks.map((d) => d.name).join(", ");
+
       const parts = [];
       parts.push(
-        `<p class="play-summary">To play <strong>${escapeHtml(selected.name)}</strong>: ` +
+        `<p class="play-summary">Bringing <strong>${escapeHtml(broughtLabel)}</strong>: ` +
           (totalPull
             ? `grab <strong>${totalPull}</strong> shared card${totalPull === 1 ? "" : "s"} from ${groupCount} place${groupCount === 1 ? "" : "s"}.`
-            : `no shared cards to pull.`) +
-          (alreadyHere ? ` ${alreadyHere} shared cop${alreadyHere === 1 ? "y is" : "ies are"} already assigned here.` : "") +
+            : `no shared cards to pull from decks left at home.`) +
+          (alreadyHere
+            ? ` ${alreadyHere} shared slot${alreadyHere === 1 ? "" : "s"} already covered by a brought deck.`
+            : "") +
           `</p>`
       );
 
-      if (needAssign.length) {
+      if (conflicts.size) {
+        const conflictRows = [...conflicts.values()].sort((a, b) => a.name.localeCompare(b.name));
         parts.push(`
           <div class="sync-notice">
-            <strong>${needAssign.length} shared card${needAssign.length === 1 ? "" : "s"}</strong>
-            in this deck ${needAssign.length === 1 ? "has" : "have"} no assigned home yet — set the copy location on the
-            <strong>Shared &amp; Locations</strong> tab so it shows up here:
-            <div class="deck-tags" style="margin-top:0.5rem">${needAssign
-              .sort((a, b) => a.localeCompare(b))
-              .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+            <strong>${conflictRows.length} card${conflictRows.length === 1 ? "" : "s"}</strong>
+            appear in multiple decks you’re bringing — with only one physical copy you can’t fully sleeve all of them at once:
+            <table style="margin-top:0.65rem">
+              <thead><tr><th>Card</th><th>In brought decks</th></tr></thead>
+              <tbody>
+                ${conflictRows
+                  .map(
+                    (c) => `
+                  <tr>
+                    <td><strong>${escapeHtml(c.name)}</strong></td>
+                    <td><div class="deck-tags">${c.decks
+                      .map((n) => `<span class="tag">${escapeHtml(n)}</span>`)
+                      .join("")}</div></td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>`);
+      }
+
+      if (needAssign.size) {
+        const rows = [...needAssign.values()].sort((a, b) => a.name.localeCompare(b.name));
+        parts.push(`
+          <div class="sync-notice">
+            <strong>${rows.length} shared card${rows.length === 1 ? "" : "s"}</strong>
+            ${rows.length === 1 ? "has" : "have"} no assigned home yet — set the copy location on the
+            <strong>Shared &amp; Locations</strong> tab:
+            <div class="deck-tags" style="margin-top:0.5rem">${rows
+              .map((c) => `<span class="tag">${escapeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`)
               .join("")}</div>
           </div>`);
       }
 
-      if (fromBulk.length) {
+      if (fromBulk.size) {
+        const rows = [...fromBulk.values()].sort((a, b) => a.name.localeCompare(b.name));
         parts.push(`
           <div class="pull-group">
-            <h4>Pull from bulk <span class="count">${fromBulk.length}</span></h4>
+            <h4>Pull from bulk <span class="count">${rows.length}</span></h4>
             <p class="sub" style="margin:0 0 0.55rem">Owned in your collection, but not currently assigned to any sleeved deck.</p>
-            <div class="deck-tags">${fromBulk
-              .sort((a, b) => a.localeCompare(b))
-              .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+            <div class="deck-tags">${rows
+              .map(
+                (c) =>
+                  `<span class="tag">${escapeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
+              )
               .join("")}</div>
           </div>`);
       }
 
-      for (const g of pullFrom.values()) {
+      for (const g of [...pullFrom.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+        const cards = [...g.cards.values()].sort((a, b) => a.name.localeCompare(b.name));
         parts.push(`
           <div class="pull-group">
-            <h4>Pull from ${escapeHtml(g.name)} <span class="count">${g.cards.length}</span></h4>
-            <div class="deck-tags">${g.cards
-              .sort((a, b) => a.localeCompare(b))
-              .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+            <h4>Pull from ${escapeHtml(g.name)} <span class="count">${cards.length}</span></h4>
+            <div class="deck-tags">${cards
+              .map(
+                (c) =>
+                  `<span class="tag">${escapeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
+              )
               .join("")}</div>
           </div>`);
       }
 
-      // Basics: quantity pool, not single-copy staples
-      const basicRows = [];
-      let basicsToPull = 0;
-      for (const info of selected.names.values()) {
-        if (!isBasicLand(info.name)) continue;
-        const need = info.quantity;
-        const inn = getLandAllocated(info.name, selected.id);
-        const pull = Math.max(0, need - inn);
-        const owned = getLandOwned(info.name);
-        basicsToPull += pull;
-        basicRows.push({ name: info.name, need, inn, pull, owned });
+      // Basics: combined need across brought decks
+      const basicMap = new Map();
+      for (const selected of selectedDecks) {
+        for (const info of selected.names.values()) {
+          if (!isBasicLand(info.name)) continue;
+          const key = cardKey(info.name);
+          if (!basicMap.has(key)) {
+            basicMap.set(key, { name: info.name, need: 0, inn: 0 });
+          }
+          const row = basicMap.get(key);
+          row.need += info.quantity;
+          row.inn += getLandAllocated(info.name, selected.id);
+        }
       }
-      basicRows.sort((a, b) => a.name.localeCompare(b.name));
+      const basicRows = [...basicMap.values()]
+        .map((r) => {
+          const pull = Math.max(0, r.need - r.inn);
+          const owned = getLandOwned(r.name);
+          return { ...r, pull, owned };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const basicsToPull = basicRows.reduce((n, r) => n + r.pull, 0);
 
       if (basicRows.length) {
         parts.push(`
           <div class="pull-group">
-            <h4>Basics for this deck <span class="count">${basicRows.reduce((n, r) => n + r.need, 0)}</span></h4>
+            <h4>Basics for brought deck${multi ? "s" : ""} <span class="count">${basicRows.reduce((n, r) => n + r.need, 0)}</span></h4>
             <p class="sub" style="margin:0 0 0.55rem">
-              Shared land pool — pull what’s missing from bulk / other decks.
+              Combined land pool need across selected decks.
               Track sleeved counts on the <strong>Lands</strong> tab.
             </p>
             <table>
-              <thead><tr><th>Land</th><th>Need</th><th>In this deck</th><th>Pull</th><th>Own (pool)</th></tr></thead>
+              <thead><tr><th>Land</th><th>Need</th><th>Sleeved in brought</th><th>Pull</th><th>Own (pool)</th></tr></thead>
               <tbody>
-                ${basicRows.map((r) => `
+                ${basicRows
+                  .map(
+                    (r) => `
                   <tr>
                     <td><strong>${escapeHtml(r.name)}</strong></td>
                     <td class="count">${r.need}</td>
                     <td>${r.inn}</td>
                     <td class="${r.pull ? "land-warn" : "land-ok"}">${r.pull || "—"}</td>
                     <td>${r.owned}${r.owned < r.need ? ' <span class="land-short">(short)</span>' : ""}</td>
-                  </tr>`).join("")}
+                  </tr>`
+                  )
+                  .join("")}
               </tbody>
             </table>
             <p style="margin:0.75rem 0 0">
               <button type="button" class="ghost" id="markBasicsSleeved">
-                Mark these basics as sleeved in ${escapeHtml(selected.name)}
+                Mark needed basics as sleeved in brought deck${multi ? "s" : ""}
               </button>
             </p>
           </div>`);
       }
 
-      if (!totalPull && !needAssign.length && !basicsToPull) {
+      if (!totalPull && !needAssign.size && !basicsToPull && !conflicts.size) {
         parts.push(
-          `<p class="empty">Nothing to move — grab <strong>${escapeHtml(selected.name)}</strong> and go.</p>`
+          `<p class="empty">Nothing to move — you’re set for <strong>${escapeHtml(broughtLabel)}</strong>.</p>`
         );
       }
 
       const hideStaples = document.getElementById("hidePlayStaples")?.checked ?? true;
-      const overlaps = deckOverlapsForPlay(selected, decks, { hideStaples });
+      const overlaps = deckOverlapsForPlay(selectedDecks, decks, { hideStaples });
       parts.push(`
         <div class="overlap-section">
-          <h3>Other decks with shared cards</h3>
+          <h3>Decks left at home with shared cards</h3>
           <p class="sub" style="margin:0 0 0.75rem">
             ${hideStaples
-              ? "Interesting overlaps only — basics and common staples (Sol Ring, Arcane Signet, Command Tower, …) are hidden."
-              : "All non-basic overlaps with your other imported decks."}
+              ? "Interesting overlaps with decks you’re not bringing — basics and common staples are hidden."
+              : "All non-basic overlaps with decks you’re not bringing."}
           </p>
           ${
             overlaps.length
@@ -3086,23 +3243,29 @@
                   .join("")
               : `<p class="empty">${
                   hideStaples
-                    ? "No interesting overlaps — only staples/basics are shared with your other decks."
-                    : "No shared non-basic cards with your other decks."
+                    ? "No interesting overlaps with decks left at home."
+                    : "No shared non-basic cards with decks left at home."
                 }</p>`
           }
         </div>`);
 
-      setMainTabBadge("play", (totalPull + basicsToPull) || overlaps.length || null);
+      setMainTabBadge(
+        "play",
+        (totalPull + basicsToPull + conflicts.size) || overlaps.length || null
+      );
       root.innerHTML = parts.join("");
 
       document.getElementById("markBasicsSleeved")?.addEventListener("click", () => {
-        for (const r of basicRows) {
-          setLandAllocated(r.name, selected.id, r.need);
+        for (const selected of selectedDecks) {
+          for (const info of selected.names.values()) {
+            if (!isBasicLand(info.name)) continue;
+            setLandAllocated(info.name, selected.id, info.quantity);
+          }
         }
         saveLocalNow();
         renderLands();
         renderPlayDeck();
-        setStatus(`Marked basics as sleeved in ${selected.name}.`, "ok");
+        setStatus(`Marked basics as sleeved in ${broughtLabel}.`, "ok");
       });
     }
 
@@ -4397,6 +4560,7 @@
       lastSharedForAssign = [];
       sharedDeckSelection = null;
       knownSharedDeckIds = new Set();
+      playDeckSelection = null;
       setMainTabBadge("shared", null);
       setMainTabBadge("combos", null);
       setMainTabBadge("owned", null);
@@ -4744,9 +4908,6 @@
       if (e.key === "Enter") loadDeckstatsCollection();
     });
 
-    document.getElementById("playDeckSelect").addEventListener("change", () => {
-      renderPlayDeck();
-    });
     document.getElementById("hidePlayStaples").addEventListener("change", () => {
       renderPlayDeck();
     });
