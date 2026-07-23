@@ -678,6 +678,14 @@
       padding: 0.12rem 0.4rem;
       vertical-align: middle;
     }
+    .proxy-badge.proxy-temporary {
+      color: #2a1a08;
+      background: color-mix(in srgb, var(--warn) 85%, white);
+    }
+    .proxy-badge.proxy-permanent {
+      color: #06241e;
+      background: color-mix(in srgb, var(--accent) 55%, #8fd6c4);
+    }
     .missing-actions {
       display: flex;
       flex-wrap: wrap;
@@ -1608,7 +1616,7 @@
     let cardAssignments = {}; // cardKey -> deckId string
     let landOwnedOverrides = {}; // cardKey -> number (manual owned totals for basics)
     let landAllocations = {}; // cardKey -> { [deckId]: qty }
-    let proxiedCards = {}; // cardKey -> display name
+    let proxiedCards = {}; // cardKey -> { name, kind: "temporary"|"permanent" } (legacy string values migrated on load)
     let notOwnedCards = {}; // cardKey -> display name (force missing even if in collection)
     let lastSharedForAssign = [];
     let sharedDeckSelection = null; // Set of selected deck ids; null means initialize to all
@@ -1741,7 +1749,7 @@
       saveAssignmentsLocal();
       writeLocalJson(LS_LAND_OWNED, landOwnedOverrides);
       writeLocalJson(LS_LAND_ALLOC, landAllocations);
-      writeLocalJson(LS_PROXIED, proxiedCards);
+      writeLocalJson(LS_PROXIED, normalizeProxiedMap(proxiedCards));
       writeLocalJson(LS_NOT_OWNED, notOwnedCards);
       // Collection last — it's the biggest and must not block deck saves.
       saveCollectionLocal();
@@ -1917,23 +1925,69 @@
       cardAssignments = readLocalJson(LS_ASSIGNMENTS) || {};
       landOwnedOverrides = readLocalJson(LS_LAND_OWNED) || {};
       landAllocations = readLocalJson(LS_LAND_ALLOC) || {};
-      proxiedCards = readLocalJson(LS_PROXIED) || {};
+      proxiedCards = normalizeProxiedMap(readLocalJson(LS_PROXIED) || {});
       notOwnedCards = readLocalJson(LS_NOT_OWNED) || {};
     }
 
+    function normalizeProxiedMap(raw) {
+      const out = {};
+      for (const [key, value] of Object.entries(raw || {})) {
+        if (!key || value == null || value === false) continue;
+        if (typeof value === "string") {
+          out[key] = { name: value, kind: "temporary" };
+          continue;
+        }
+        if (typeof value === "object") {
+          const name = value.name || key;
+          const kind = value.kind === "permanent" ? "permanent" : "temporary";
+          out[key] = { name, kind };
+        }
+      }
+      return out;
+    }
+
+    function getProxyInfo(cardName) {
+      const key = cardKey(cardName);
+      const value = proxiedCards[key];
+      if (!value) return null;
+      if (typeof value === "string") return { name: value, kind: "temporary" };
+      return {
+        name: value.name || cardName,
+        kind: value.kind === "permanent" ? "permanent" : "temporary",
+      };
+    }
+
     function isProxied(cardName) {
-      return Boolean(proxiedCards[cardKey(cardName)]);
+      return Boolean(getProxyInfo(cardName));
+    }
+
+    function proxyKind(cardName) {
+      return getProxyInfo(cardName)?.kind || null;
+    }
+
+    function proxyBadgeHtml(cardName) {
+      const info = getProxyInfo(cardName);
+      if (!info) return "";
+      const permanent = info.kind === "permanent";
+      const label = permanent ? "Perm proxy" : "Temp proxy";
+      const title = permanent
+        ? "Permanent proxy — counting as owned; not on the buy list"
+        : "Temporary proxy — stand-in until you get a real copy";
+      return `<span class="proxy-badge ${permanent ? "proxy-permanent" : "proxy-temporary"}" title="${escapeAttr(title)}">${label}</span>`;
     }
 
     function isNotOwned(cardName) {
       return Boolean(notOwnedCards[cardKey(cardName)]);
     }
 
-    function setProxied(cardName, on) {
+    function setProxied(cardName, on, kind = "temporary") {
       const key = cardKey(cardName);
       if (!key) return;
       if (on) {
-        proxiedCards[key] = normalizeName(cardName) || cardName;
+        proxiedCards[key] = {
+          name: normalizeName(cardName) || cardName,
+          kind: kind === "permanent" ? "permanent" : "temporary",
+        };
         delete notOwnedCards[key];
         writeLocalJson(LS_NOT_OWNED, notOwnedCards);
       } else delete proxiedCards[key];
@@ -1951,6 +2005,48 @@
       } else delete notOwnedCards[key];
       writeLocalJson(LS_NOT_OWNED, notOwnedCards);
       scheduleSaveLocal();
+    }
+
+    function proxyActionButtonsHtml(cardName) {
+      const kind = proxyKind(cardName);
+      const nameAttr = escapeAttr(cardName);
+      if (kind) {
+        return `
+          ${kind !== "temporary" ? `<button type="button" class="ghost mark-proxy-temp" data-name="${nameAttr}">Make temp</button>` : ""}
+          ${kind !== "permanent" ? `<button type="button" class="ghost mark-proxy-perm" data-name="${nameAttr}">Make perm</button>` : ""}
+          <button type="button" class="ghost unmark-proxy" data-name="${nameAttr}">Unmark proxy</button>`;
+      }
+      return `
+        <button type="button" class="ghost mark-proxy-temp" data-name="${nameAttr}">Temp proxy</button>
+        <button type="button" class="ghost mark-proxy-perm" data-name="${nameAttr}">Perm proxy</button>`;
+    }
+
+    function wireProxyButtons(root) {
+      if (!root) return;
+      root.querySelectorAll(".mark-proxy-temp").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const name = btn.getAttribute("data-name");
+          setProxied(name, true, "temporary");
+          refreshOwnershipViews();
+          setStatus(`Marked “${name}” as temporary proxy.`, "ok");
+        });
+      });
+      root.querySelectorAll(".mark-proxy-perm").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const name = btn.getAttribute("data-name");
+          setProxied(name, true, "permanent");
+          refreshOwnershipViews();
+          setStatus(`Marked “${name}” as permanent proxy.`, "ok");
+        });
+      });
+      root.querySelectorAll(".unmark-proxy").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const name = btn.getAttribute("data-name");
+          setProxied(name, false);
+          refreshOwnershipViews();
+          setStatus(`Unmarked proxy for “${name}”.`, "ok");
+        });
+      });
     }
 
     async function markNotOwned(name) {
@@ -1977,16 +2073,18 @@
 
     function refreshOwnershipViews() {
       const decks = gatherDecks().filter((d) => d.names.size > 0);
-      if (!decks.length) return;
-      const excludeBasics = document.getElementById("excludeBasicsOwned").checked;
-      lastOwnership = computeOwnership(decks, { excludeBasics });
-      renderOwnership(lastOwnership);
-      if (lastAnalyze) {
-        renderShared(null, decks);
-        refreshExportText();
+      if (decks.length) {
+        const excludeBasics = document.getElementById("excludeBasicsOwned").checked;
+        lastOwnership = computeOwnership(decks, { excludeBasics });
+        renderOwnership(lastOwnership);
+        if (lastAnalyze) {
+          renderShared(null, decks);
+          refreshExportText();
+        }
+        renderPlayDeck();
       }
-      renderPlayDeck();
       renderCollectionSearch();
+      if (lastDeckResults) renderCombos(lastDeckResults, lastShowAlmost);
     }
 
     function restoreDecksFromLocal() {
@@ -2955,7 +3053,7 @@
           ? `<span class="tag" style="color:var(--accent)">in ${escapeHtml(home)}</span>`
           : "";
         return `<tr class="${conflict ? "assign-conflict" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${ownedNote}${homeNote}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${proxyBadgeHtml(row.name)}${ownedNote}${homeNote}</td>
           <td class="count">${row.decks.length}/${selectedDecks.length}</td>
           <td class="hide-sm"><div class="deck-tags">${tags}</div></td>
           <td>${assignmentSelectHtml(row)}</td>
@@ -3102,7 +3200,7 @@
                   .map(
                     (c) => `
                   <tr>
-                    <td><strong>${escapeHtml(c.name)}</strong></td>
+                    <td><strong>${escapeHtml(c.name)}</strong>${proxyBadgeHtml(c.name)}</td>
                     <td><div class="deck-tags">${c.decks
                       .map((n) => `<span class="tag">${escapeHtml(n)}</span>`)
                       .join("")}</div></td>
@@ -3122,7 +3220,10 @@
             ${rows.length === 1 ? "has" : "have"} no assigned home yet — set the copy location on the
             <strong>Shared &amp; Locations</strong> tab:
             <div class="deck-tags" style="margin-top:0.5rem">${rows
-              .map((c) => `<span class="tag">${escapeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`)
+              .map(
+                (c) =>
+                  `<span class="tag">${escapeHtml(c.name)}${proxyBadgeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
+              )
               .join("")}</div>
           </div>`);
       }
@@ -3136,7 +3237,7 @@
             <div class="deck-tags">${rows
               .map(
                 (c) =>
-                  `<span class="tag">${escapeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
+                  `<span class="tag">${escapeHtml(c.name)}${proxyBadgeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
               )
               .join("")}</div>
           </div>`);
@@ -3150,7 +3251,7 @@
             <div class="deck-tags">${cards
               .map(
                 (c) =>
-                  `<span class="tag">${escapeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
+                  `<span class="tag">${escapeHtml(c.name)}${proxyBadgeHtml(c.name)}${formatForDecks(c.forDecks)}</span>`
               )
               .join("")}</div>
           </div>`);
@@ -3236,7 +3337,7 @@
             <div class="overlap-deck pull-group">
               <h4>${escapeHtml(o.deck.name)} <span class="count">${o.cards.length}</span></h4>
               <div class="deck-tags">${o.cards
-                .map((c) => `<span class="tag">${escapeHtml(c)}</span>`)
+                .map((c) => `<span class="tag">${escapeHtml(c)}${proxyBadgeHtml(c)}</span>`)
                 .join("")}</div>
             </div>`
                   )
@@ -3270,17 +3371,21 @@
     }
 
     function renderComboCard(v, almost = false) {
-      const cards = comboCards(v).join(" + ");
+      const cards = comboCards(v)
+        .map((n) => `${escapeHtml(n)}${proxyBadgeHtml(n)}`)
+        .join(" + ");
       const produces = comboProduces(v).join(", ");
       const desc = [v.easyPrerequisites, v.notablePrerequisites, v.description]
         .filter(Boolean)
         .join("\n");
       const href = `https://commanderspellbook.com/combo/${encodeURIComponent(v.id)}/`;
       const miss = almost && v.missing
-        ? `<div class="produces" style="color:var(--warn)">Missing: ${(v.missing || []).join(", ")}</div>`
+        ? `<div class="produces" style="color:var(--warn)">Missing: ${(v.missing || [])
+            .map((n) => `${escapeHtml(n)}${proxyBadgeHtml(n)}`)
+            .join(", ")}</div>`
         : "";
       return `<article class="combo">
-        <h4>${escapeHtml(cards)}</h4>
+        <h4>${cards}</h4>
         <div class="produces">${escapeHtml(produces || "—")}</div>
         ${miss}
         <div class="desc">${escapeHtml(desc.slice(0, 480))}${desc.length > 480 ? "…" : ""}</div>
@@ -3378,12 +3483,12 @@
           : "";
         return `
         <tr class="${multi ? "missing-multi" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}${forced}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${proxyBadgeHtml(row.name)}${badge}${bulkNote}${forced}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}</td>
           <td>
             <div class="missing-actions">
               <button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button>
-              <button type="button" class="ghost mark-proxy" data-name="${escapeAttr(row.name)}">Mark proxy</button>
+              ${proxyActionButtonsHtml(row.name)}
               ${isNotOwned(row.name)
                 ? `<button type="button" class="ghost unmark-not-owned" data-name="${escapeAttr(row.name)}">Undo not owned</button>`
                 : ""}
@@ -3393,6 +3498,8 @@
       }).join("");
       const multiCount = missing.filter((row) => multiMissingKeys?.has(cardKey(row.name))).length;
       const proxiedOwned = (owned || []).filter((row) => row.proxied);
+      const tempProxied = proxiedOwned.filter((row) => proxyKind(row.name) !== "permanent");
+      const permProxied = proxiedOwned.filter((row) => proxyKind(row.name) === "permanent");
       const overrideKeys = new Set(collectionState?.override_keys || []);
       const overrideOwned = (owned || []).filter(
         (row) => !row.proxied && overrideKeys.has(cardKey(row.name))
@@ -3401,23 +3508,40 @@
         (row) => !row.proxied && !overrideKeys.has(cardKey(row.name))
       );
 
-      const proxiedHtml = proxiedOwned.length
-        ? `
+      const proxiedTable = (rows, title, blurb) =>
+        rows.length
+          ? `
           <div class="pull-group" style="margin-top:1.25rem">
-            <h4>Proxied in this deck <span class="count">${proxiedOwned.length}</span></h4>
-            <p class="sub" style="margin:0 0 0.65rem">Counted as covered for missing — not a buy list item.</p>
+            <h4>${title} <span class="count">${rows.length}</span></h4>
+            <p class="sub" style="margin:0 0 0.65rem">${blurb}</p>
             <table>
               <thead><tr><th>Card</th><th></th></tr></thead>
               <tbody>
-                ${proxiedOwned.map((r) => `
+                ${rows
+                  .map(
+                    (r) => `
                   <tr>
-                    <td><strong>${escapeHtml(r.name)}</strong><span class="proxy-badge">Proxy</span></td>
-                    <td><button type="button" class="ghost unmark-proxy" data-name="${escapeAttr(r.name)}">Unmark proxy</button></td>
-                  </tr>`).join("")}
+                    <td><strong>${escapeHtml(r.name)}</strong>${proxyBadgeHtml(r.name)}</td>
+                    <td><div class="missing-actions">${proxyActionButtonsHtml(r.name)}</div></td>
+                  </tr>`
+                  )
+                  .join("")}
               </tbody>
             </table>
           </div>`
-        : "";
+          : "";
+
+      const proxiedHtml =
+        proxiedTable(
+          tempProxied,
+          "Temporary proxies in this deck",
+          "Stand-ins until you get a real copy — still counted as covered for missing."
+        ) +
+        proxiedTable(
+          permProxied,
+          "Permanent proxies in this deck",
+          "Long-term proxies — counted as covered for missing, not a buy list item."
+        );
 
       const overrideHtml = overrideOwned.length
         ? `
@@ -3429,11 +3553,12 @@
               <tbody>
                 ${overrideOwned.map((r) => `
                   <tr>
-                    <td><strong>${escapeHtml(r.name)}</strong><span class="tag">override</span></td>
+                    <td><strong>${escapeHtml(r.name)}</strong>${proxyBadgeHtml(r.name)}<span class="tag">override</span></td>
                     <td>
                       <div class="missing-actions">
                         <button type="button" class="ghost unmark-owned" data-name="${escapeAttr(r.name)}">Unmark owned</button>
                         <button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button>
+                        ${proxyActionButtonsHtml(r.name)}
                       </div>
                     </td>
                   </tr>`).join("")}
@@ -3454,9 +3579,14 @@
               <tbody>
                 ${realOwned.slice(0, 80).map((r) => `
                   <tr>
-                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td><strong>${escapeHtml(r.name)}</strong>${proxyBadgeHtml(r.name)}</td>
                     <td>${r.have}</td>
-                    <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
+                    <td>
+                      <div class="missing-actions">
+                        <button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button>
+                        ${proxyActionButtonsHtml(r.name)}
+                      </div>
+                    </td>
                   </tr>`).join("")}
               </tbody>
             </table>
@@ -3476,25 +3606,41 @@
               <tbody>
                 ${fromBulk.map((r) => `
                   <tr>
-                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td><strong>${escapeHtml(r.name)}</strong>${proxyBadgeHtml(r.name)}</td>
                     <td><span class="tag" style="color:var(--accent)">In bulk (not in a deck)</span></td>
-                    <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
+                    <td>
+                      <div class="missing-actions">
+                        <button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button>
+                        ${proxyActionButtonsHtml(r.name)}
+                      </div>
+                    </td>
                   </tr>`).join("")}
                 ${fromOther.map((r) => `
                   <tr>
-                    <td><strong>${escapeHtml(r.name)}</strong></td>
+                    <td><strong>${escapeHtml(r.name)}</strong>${proxyBadgeHtml(r.name)}</td>
                     <td><span class="tag">In ${escapeHtml(r.fromDeck)}${
                       r.unassigned ? " (pick a home on Shared)" : ""
                     }</span></td>
-                    <td><button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button></td>
+                    <td>
+                      <div class="missing-actions">
+                        <button type="button" class="ghost mark-not-owned" data-name="${escapeAttr(r.name)}">Mark not owned</button>
+                        ${proxyActionButtonsHtml(r.name)}
+                      </div>
+                    </td>
                   </tr>`).join("")}
               </tbody>
             </table>
           </div>`
         : "";
 
+      const tempCount = tempProxied.length;
+      const permCount = permProxied.length;
+      const proxyNote = proxiedOwned.length
+        ? ` (${proxiedOwned.length} proxied${tempCount || permCount ? `: ${tempCount} temp / ${permCount} perm` : ""})`
+        : "";
+
       return `
-        <p class="sub" style="margin-top:0">${owned.length} owned${proxiedOwned.length ? ` (${proxiedOwned.length} proxied)` : ""} · <span class="owned-no">${missing.length} missing</span>${
+        <p class="sub" style="margin-top:0">${owned.length} owned${proxyNote} · <span class="owned-no">${missing.length} missing</span>${
           multiCount
             ? ` · <span class="owned-no">${multiCount} also needed by other decks</span>`
             : ""
@@ -3590,13 +3736,13 @@
           ? `<span class="not-owned-badge">Not owned</span>`
           : "";
         return `<tr class="${multi ? "missing-multi" : ""}">
-          <td><strong>${escapeHtml(row.name)}</strong>${badge}${bulkNote}${forced}</td>
+          <td><strong>${escapeHtml(row.name)}</strong>${proxyBadgeHtml(row.name)}${badge}${bulkNote}${forced}</td>
           <td class="owned-no">need ${row.need}, have ${row.have}${short ? ` (short ${short})` : ""}</td>
           <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
           <td>
             <div class="missing-actions">
               <button type="button" class="ghost mark-owned" data-name="${escapeAttr(row.name)}">Mark owned</button>
-              <button type="button" class="ghost mark-proxy" data-name="${escapeAttr(row.name)}">Mark proxy</button>
+              ${proxyActionButtonsHtml(row.name)}
               ${isNotOwned(row.name)
                 ? `<button type="button" class="ghost unmark-not-owned" data-name="${escapeAttr(row.name)}">Undo not owned</button>`
                 : ""}
@@ -3614,7 +3760,7 @@
 
       const syncRows = syncMbOnly.map((row) => `
         <tr>
-          <td><strong>${escapeHtml(row.name)}</strong></td>
+          <td><strong>${escapeHtml(row.name)}</strong>${proxyBadgeHtml(row.name)}</td>
           <td class="owned-yes">ManaBox x${row.manabox}</td>
           <td class="owned-no">Deckstats x${row.deckstats}</td>
           <td class="hide-sm"><div class="deck-tags">${row.decks.map((d) => `<span class="tag">${escapeHtml(d)}</span>`).join("")}</div></td>
@@ -3646,20 +3792,7 @@
       root.querySelectorAll(".mark-owned").forEach((btn) => {
         btn.addEventListener("click", () => markOwned(btn.getAttribute("data-name")));
       });
-      root.querySelectorAll(".mark-proxy").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          setProxied(btn.getAttribute("data-name"), true);
-          refreshOwnershipViews();
-          setStatus(`Marked “${btn.getAttribute("data-name")}” as proxied.`, "ok");
-        });
-      });
-      root.querySelectorAll(".unmark-proxy").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          setProxied(btn.getAttribute("data-name"), false);
-          refreshOwnershipViews();
-          setStatus(`Unmarked proxy for “${btn.getAttribute("data-name")}”.`, "ok");
-        });
-      });
+      wireProxyButtons(root);
       root.querySelectorAll(".mark-not-owned").forEach((btn) => {
         btn.addEventListener("click", () => markNotOwned(btn.getAttribute("data-name")));
       });
@@ -3930,7 +4063,7 @@
               .map(
                 (row) => `
               <tr>
-                <td>${escapeHtml(row.name)}${
+                <td>${escapeHtml(row.name)}${proxyBadgeHtml(row.name)}${
                   row.override ? ' <span class="tag">override</span>' : ""
                 }${
                   row.notOwned ? ' <span class="not-owned-badge">Not owned</span>' : ""
@@ -3954,6 +4087,7 @@
                         ? `<button type="button" class="ghost unmark-owned" data-name="${escapeAttr(row.name)}">Unmark owned</button>`
                         : ""
                     }
+                    ${proxyActionButtonsHtml(row.name)}
                   </div>
                 </td>
               </tr>`
@@ -3976,6 +4110,7 @@
       root.querySelectorAll(".unmark-owned").forEach((btn) => {
         btn.addEventListener("click", () => unmarkOwned(btn.getAttribute("data-name")));
       });
+      wireProxyButtons(root);
     }
 
     function computeOwnership(decks, { excludeBasics }) {
@@ -4247,10 +4382,14 @@
           }
         }
         lines.push("");
-        const proxiedNames = Object.values(proxiedCards || {}).filter(Boolean).sort((a, b) => a.localeCompare(b));
-        if (proxiedNames.length) {
-          lines.push(`Proxied (${proxiedNames.length}):`);
-          for (const name of proxiedNames) lines.push(`- ${name}`);
+        const proxiedEntries = Object.values(normalizeProxiedMap(proxiedCards || {}))
+          .map((v) => ({ name: v.name, kind: v.kind }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (proxiedEntries.length) {
+          lines.push(`Proxied (${proxiedEntries.length}):`);
+          for (const row of proxiedEntries) {
+            lines.push(`- ${row.name} [${row.kind === "permanent" ? "permanent" : "temporary"}]`);
+          }
           lines.push("");
         }
       }
@@ -4262,7 +4401,9 @@
         } else {
           for (const row of shared) {
             const where = row.decks.map((d) => `${d.name} x${d.quantity}`).join("; ");
-            lines.push(`${row.name}`);
+            const proxy = proxyKind(row.name);
+            const proxyNote = proxy ? ` [${proxy} proxy]` : "";
+            lines.push(`${row.name}${proxyNote}`);
             lines.push(`  in ${row.decks.length}/${decks.length} decks — ${where}`);
           }
         }

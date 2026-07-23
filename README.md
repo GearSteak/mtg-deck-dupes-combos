@@ -76,7 +76,7 @@ Notes:
 2. **Deckstats live pull:** Needs a collection **number** (`…/collections/12345`), not plain `/collections`
 3. Analyze (or Quick assign) → **Owned / Missing** tab
 4. Cards already listed in another imported deck count as owned (shown under “sleeve for this deck,” not missing) — helpful when Deckstats collection export only has unbound cards
-5. **Mark owned**, **Mark proxy**, or **Mark not owned** when your CSV is wrong / you don’t have the card
+5. **Mark owned**, **Temp proxy** / **Perm proxy**, or **Mark not owned** when your CSV is wrong / you don’t have the card (proxy badges show wherever that card appears)
 6. On **Imports**, use deck checkboxes + **Remove selected**, or each deck’s **Remove**, to drop lists you no longer need
 7. **Shared & Locations** → pick which deck holds your **only copy** of each staple
 8. **Collection** tab → search the merged inventory (ManaBox + Deckstats + overrides)
